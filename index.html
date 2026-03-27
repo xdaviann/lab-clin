@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laboratorio — Sistema de Registro</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700;800&family=Nunito+Sans:ital,wght@0,300;0,400;0,600;0,700;1,300&display=swap"
+    rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="./styles/style.css">
+</head>
+
+<body>
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-logo">
+        <img src="./assets/logo.jpg" alt="Logo">
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">Lab<span>Clin</span></div>
+        <div class="brand-sub">Sistema de Gestión de Laboratorio</div>
+      </div>
+    </div>
+    <div class="topbar-date" id="topbarDate"></div>
+  </div>
+
+  <div class="layout">
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+      <div class="sidebar-section">Principal</div>
+      <button class="nav-btn active" onclick="showPage('dashboard')" id="nav-dashboard">
+        <span class="icon"><i class="bi bi-bar-chart-line-fill" aria-hidden="true"></i></span> Dashboard
+      </button>
+
+      <div class="sidebar-section">Pacientes</div>
+      <button class="nav-btn" onclick="showPage('registro')" id="nav-registro">
+        <span class="icon"><i class="bi bi-plus-circle-fill" aria-hidden="true"></i></span> Nuevo Registro
+      </button>
+      <button class="nav-btn" onclick="showPage('expedientes')" id="nav-expedientes">
+        <span class="icon"><i class="bi bi-journal-medical" aria-hidden="true"></i></span> Expedientes
+      </button>
+
+      <div class="sidebar-section">Reportes</div>
+      <button class="nav-btn" onclick="showPage('reporte')" id="nav-reporte">
+        <span class="icon"><i class="bi bi-file-earmark-text-fill" aria-hidden="true"></i></span> Reporte del Día
+      </button>
+    </nav>
+
+    <main class="main">
+
+      <!-- ══════════ DASHBOARD ══════════ -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-header">
+          <h1>Dashboard</h1>
+          <p>Resumen de actividad del laboratorio clínico</p>
+        </div>
+        <div class="stats-row">
+          <div class="stat-card c1">
+            <div class="stat-label">Pacientes Hoy</div>
+            <div class="stat-value" id="s-today">0</div>
+            <div class="stat-sub">Visitas registradas hoy</div>
+          </div>
+          <div class="stat-card c2">
+            <div class="stat-label">Ingresos Hoy</div>
+            <div class="stat-value" id="s-revenue">$0.00</div>
+            <div class="stat-sub">Total recaudado hoy</div>
+          </div>
+          <div class="stat-card c3">
+            <div class="stat-label">Total Pacientes</div>
+            <div class="stat-value" id="s-total">0</div>
+            <div class="stat-sub">En base de datos</div>
+          </div>
+          <div class="stat-card c4">
+            <div class="stat-label">Pruebas Hoy</div>
+            <div class="stat-value" id="s-tests">0</div>
+            <div class="stat-sub">Realizadas hoy</div>
+          </div>
+        </div>
+        <div class="charts-row">
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title">Pacientes por Día — Últimos 7 días</div>
+            <div class="chart-wrap"><canvas id="cPacientes"></canvas></div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title">Pruebas Más Solicitadas</div>
+            <div class="chart-wrap"><canvas id="cPruebas"></canvas></div>
+          </div>
+        </div>
+        <div class="charts-row" style="margin-top:16px;">
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title">Ingresos por Día — Últimos 7 días</div>
+            <div class="chart-wrap"><canvas id="cIngresos"></canvas></div>
+          </div>
+          <div class="card" style="margin-bottom:0">
+            <div class="card-title">Distribución por Género</div>
+            <div class="chart-wrap"><canvas id="cGenero"></canvas></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <div class="card-title">Últimas Visitas Registradas</div>
+          <div id="dashLastVisits">
+            <div class="empty">
+              <div class="empty-icon"><i class="bi bi-hospital" aria-hidden="true"></i></div>
+              <p>Sin registros aún</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ REGISTRO ══════════ -->
+      <div class="page" id="page-registro">
+        <div class="page-header">
+          <h1>Nuevo Registro</h1>
+          <p>Busca al paciente por cédula para iniciar el registro</p>
+        </div>
+
+        <!-- PASO 1: Cédula -->
+        <div class="card">
+          <div class="card-title">Identificación del Paciente</div>
+          <div class="cedula-search-wrap">
+            <div class="form-group">
+              <label>Número de Cédula / DNI</label>
+              <input type="text" id="busq-cedula" class="cedula-big"
+                placeholder="Ej: V-12345678  ·  Ingresa la cédula para continuar..."
+                onkeyup="onCedulaInput(this.value)">
+            </div>
+            <button class="btn btn-secondary" onclick="resetRegistro()"><i class="bi bi-arrow-clockwise"
+                aria-hidden="true"></i> Reiniciar</button>
+          </div>
+        </div>
+
+        <!-- Banner nuevo paciente -->
+        <div class="banner banner-new" id="bannerNew">
+          <span class="banner-icon"><i class="bi bi-person-plus-fill" aria-hidden="true"></i></span>
+          <span>Paciente nuevo. Completa los datos personales a continuación.</span>
+        </div>
+
+        <!-- Banner paciente encontrado -->
+        <div class="banner banner-found" id="bannerFound">
+          <span class="banner-icon"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></span>
+          <span id="bannerFoundText">Paciente encontrado. Datos cargados.</span>
+        </div>
+
+        <!-- DATOS DEL PACIENTE: modo nuevo (editable) -->
+        <div class="card" id="formNuevo" style="display:none;">
+          <div class="card-title">Datos Personales</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nombre Completo *</label>
+              <input type="text" id="f-nombre" placeholder="Ej: María González Pérez">
+            </div>
+            <div class="form-group">
+              <label>Cédula / DNI *</label>
+              <input type="text" id="f-cedula" placeholder="V-12345678" readonly style="background:var(--bg2);">
+            </div>
+            <div class="form-group">
+              <label>Género</label>
+              <select id="f-genero">
+                <option value="">Seleccionar...</option>
+                <option value="Femenino">Femenino</option>
+                <option value="Masculino">Masculino</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Fecha de Nacimiento</label>
+              <input type="date" id="f-nacimiento">
+            </div>
+            <div class="form-group">
+              <label>Teléfono</label>
+              <input type="text" id="f-telefono" placeholder="0414-1234567">
+            </div>
+            <div class="form-group full">
+              <label>Dirección</label>
+              <input type="text" id="f-direccion" placeholder="Calle, Sector, Ciudad...">
+            </div>
+          </div>
+        </div>
+
+        <!-- DATOS DEL PACIENTE: modo existente (bloqueado) -->
+        <div class="card patient-data-locked" id="cardLocked">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+            <div class="card-title" style="margin-bottom:0;">Datos del Paciente</div>
+            <button class="btn btn-outline-blue btn-sm" onclick="desbloquearEdicion()"><i class="bi bi-pencil-square"
+                aria-hidden="true"></i> Modificar Datos</button>
+          </div>
+          <div class="patient-summary-grid" id="patientSummaryGrid"></div>
+        </div>
+
+        <!-- HISTORIAL DE VISITAS del paciente existente -->
+        <div class="card" id="cardHistorial" style="display:none;">
+          <div class="card-title">Historial de Visitas Anteriores</div>
+          <div id="historialVisitas"></div>
+        </div>
+
+        <!-- Formulario edición desbloqueado -->
+        <div class="card" id="formEdit" style="display:none;">
+          <div class="card-title">Editar Datos Personales</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nombre Completo *</label>
+              <input type="text" id="fe-nombre">
+            </div>
+            <div class="form-group">
+              <label>Cédula</label>
+              <input type="text" id="fe-cedula" readonly style="background:var(--bg2);">
+            </div>
+            <div class="form-group">
+              <label>Género</label>
+              <select id="fe-genero">
+                <option value="">—</option>
+                <option value="Femenino">Femenino</option>
+                <option value="Masculino">Masculino</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Fecha de Nacimiento</label>
+              <input type="date" id="fe-nacimiento">
+            </div>
+            <div class="form-group">
+              <label>Teléfono</label>
+              <input type="text" id="fe-telefono">
+            </div>
+            <div class="form-group full">
+              <label>Dirección</label>
+              <input type="text" id="fe-direccion">
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:14px; justify-content:flex-end;">
+            <button class="btn btn-secondary btn-sm" onclick="cancelarEdicion()">Cancelar</button>
+            <button class="btn btn-primary btn-sm" onclick="guardarEdicion()"><i class="bi bi-floppy-fill"
+                aria-hidden="true"></i> Guardar Cambios</button>
+          </div>
+        </div>
+
+        <!-- NUEVA VISITA: Selección de pruebas -->
+        <div class="card" id="cardNuevaVisita" style="display:none;">
+          <div class="card-title">Nueva Visita — Pruebas a Realizar</div>
+          <div class="tests-grid" id="testsGrid"></div>
+
+          <div class="selected-tests-section" id="selectedTestsSection"></div>
+
+          <div class="total-bar" id="totalBar" style="display:none;">
+            <span class="total-bar-label">Total de la Visita</span>
+            <span class="total-bar-amount" id="totalBarAmt">$0.00</span>
+          </div>
+
+          <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:18px;">
+            <button class="btn btn-secondary" onclick="resetRegistro()">Cancelar</button>
+            <button class="btn btn-green" onclick="guardarRegistro()"><i class="bi bi-floppy-fill"
+                aria-hidden="true"></i> Guardar Registro</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ EXPEDIENTES ══════════ -->
+      <div class="page" id="page-expedientes">
+        <div class="page-header">
+          <h1>Expedientes</h1>
+          <p>Historial completo de pacientes registrados en el sistema</p>
+        </div>
+        <div class="card">
+          <div class="search-row">
+            <input type="text" placeholder="Buscar por nombre o cédula..." id="expSearch" oninput="renderExpedientes()">
+            <button class="btn btn-secondary btn-sm"
+              onclick="document.getElementById('expSearch').value=''; renderExpedientes()"><i class="bi bi-x-lg"
+                aria-hidden="true"></i> Limpiar</button>
+          </div>
+          <div class="table-wrap" id="expTable">
+            <div class="empty">
+              <div class="empty-icon"><i class="bi bi-journal-medical" aria-hidden="true"></i></div>
+              <p>Sin expedientes aún</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ EXPEDIENTE INDIVIDUAL ══════════ -->
+      <div class="page" id="page-exp-individual">
+        <div style="margin-bottom:16px;">
+          <button class="btn btn-secondary btn-sm" onclick="showPage('expedientes')"><i class="bi bi-arrow-left"
+              aria-hidden="true"></i> Volver a expedientes</button>
+        </div>
+        <div class="card" id="expIndividualCard">
+          <div class="empty">
+            <div class="empty-icon"><i class="bi bi-journal-medical" aria-hidden="true"></i></div>
+            <p>—</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ REPORTE ══════════ -->
+      <div class="page" id="page-reporte">
+        <div class="page-header">
+          <h1>Reporte del Día</h1>
+          <p>Genera y descarga el reporte en PDF de los pacientes atendidos</p>
+        </div>
+        <div class="card">
+          <div class="report-bar">
+            <div class="form-group">
+              <label>Fecha del Reporte</label>
+              <input type="date" id="reportDate">
+            </div>
+            <button class="btn btn-gold" onclick="generarPDF()"><i class="bi bi-file-earmark-text-fill"
+                aria-hidden="true"></i> Generar PDF</button>
+            <button class="btn btn-secondary" onclick="verEnPantalla()"><i class="bi bi-eye-fill"
+                aria-hidden="true"></i> Ver en Pantalla</button>
+          </div>
+        </div>
+        <div class="card" id="reportPreview" style="display:none;">
+          <div class="card-title">Vista Previa</div>
+          <div id="reportContent"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- LIGHTBOX -->
+  <div class="lightbox" id="lightbox" onclick="this.classList.remove('open')">
+    <button class="lightbox-close" onclick="document.getElementById('lightbox').classList.remove('open')"><i
+        class="bi bi-x-lg" aria-hidden="true"></i></button>
+    <img id="lightboxImg" src="" alt="">
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toastWrap"></div>
+
+  <script src="js/main.js"></script>
+</body>
+
+</html>
