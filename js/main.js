@@ -1,7 +1,5 @@
 
-// ════════════════════════════════════════════
 // CONFIG — CATÁLOGO DE PRUEBAS
-// ════════════════════════════════════════════
 const CATALOG = [
     { id: 'hematologia-completa', nombre: 'HEMATOLOGIA COMPLETA', precio: 5.00 },
     { id: 'frotis-de-sangre-periferica-fsp', nombre: 'FROTIS DE SANGRE PERIFERICA (FSP)', precio: 7.00 },
@@ -79,9 +77,11 @@ const CATALOG = [
     { id: 'troponina-campo-elias', nombre: 'TROPONINA CAMPO ELIAS', precio: 25.00 },
 ];
 
-// ════════════════════════════════════════════
-// DB (localStorage)
-// ════════════════════════════════════════════
+const AUTH_USER = 'admin';
+const AUTH_PASS = 'admin123';
+
+
+// BDD (localStorage)
 let DB = { pacientes: {}, visitas: [] };
 
 function loadDB() {
@@ -92,18 +92,58 @@ function saveDB() {
 }
 loadDB();
 
-// ════════════════════════════════════════════
+
 // ESTADO DE REGISTRO
-// ════════════════════════════════════════════
+
 let regState = {
     cedula: '',
-    modo: null,          // 'nuevo' | 'existente'
-    selectedTests: {},   // { testId: { resultado: '', imagen: '' } }
+    modo: null,
+    selectedTests: {},
 };
 
-// ════════════════════════════════════════════
+function showAppShell() {
+    const login = document.getElementById('loginScreen');
+    const app = document.getElementById('appShell');
+    if (login) login.style.display = 'none';
+    if (app) app.classList.remove('hidden');
+}
+
+function attemptLogin() {
+    const userEl = document.getElementById('loginUser');
+    const passEl = document.getElementById('loginPass');
+    const user = userEl?.value.trim() || '';
+    const pass = passEl?.value || '';
+
+    if (user === AUTH_USER && pass === AUTH_PASS) {
+        showAppShell();
+        renderDashboard();
+        toast('Bienvenido al sistema', 'success');
+        return;
+    }
+
+    toast('Credenciales incorrectas', 'error');
+    if (passEl) passEl.value = '';
+    passEl?.focus();
+}
+
+function initLogin() {
+    const app = document.getElementById('appShell');
+    if (app) app.classList.add('hidden');
+
+    const userEl = document.getElementById('loginUser');
+    const passEl = document.getElementById('loginPass');
+    [userEl, passEl].forEach(el => {
+        if (!el) return;
+        el.addEventListener('keydown', e => {
+            if (e.key === 'Enter') attemptLogin();
+        });
+    });
+
+    userEl?.focus();
+}
+
+
 // NAVEGACIÓN
-// ════════════════════════════════════════════
 function showPage(name) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -117,9 +157,7 @@ function showPage(name) {
     if (name === 'reporte') { document.getElementById('reportDate').value = today(); }
 }
 
-// ════════════════════════════════════════════
 // TOPBAR DATE
-// ════════════════════════════════════════════
 function today() { return new Date().toISOString().split('T')[0]; }
 function fmtFecha(iso) {
     if (!iso) return '—';
@@ -139,16 +177,14 @@ function calcEdad(nac) {
     document.getElementById('topbarDate').textContent = new Date().toLocaleDateString('es-VE', opts);
 })();
 
-// ════════════════════════════════════════════
 // REGISTRO — FLUJO PRINCIPAL
-// ════════════════════════════════════════════
 function resetRegistro() {
     regState = { cedula: '', modo: null, selectedTests: {} };
     document.getElementById('busq-cedula').value = '';
     hide('bannerNew'); hide('bannerFound');
     hide('formNuevo'); hide('cardLocked'); hide('cardHistorial');
     hide('formEdit'); hide('cardNuevaVisita');
-    // clear form fields
+    // limpiar campos de ambos formularios
     ['f-nombre', 'f-cedula', 'f-genero', 'f-nacimiento', 'f-telefono', 'f-direccion'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -279,9 +315,7 @@ function renderHistorial(cedula) {
   `).join('');
 }
 
-// ════════════════════════════════════════════
 // NUEVA VISITA — PRUEBAS
-// ════════════════════════════════════════════
 function renderNuevaVisita() {
     renderTestsGrid();
     renderSelectedTests();
@@ -418,9 +452,7 @@ function guardarRegistro() {
     resetRegistro();
 }
 
-// ════════════════════════════════════════════
 // EXPEDIENTES
-// ════════════════════════════════════════════
 function renderExpedientes() {
     const q = document.getElementById('expSearch').value.toLowerCase().trim();
     const el = document.getElementById('expTable');
@@ -561,9 +593,7 @@ function eliminarPaciente(cedula, volverAExpedientes = false) {
     renderDashboard();
 }
 
-// ════════════════════════════════════════════
 // DASHBOARD
-// ════════════════════════════════════════════
 let charts = {};
 
 function renderDashboard() {
@@ -588,11 +618,11 @@ function renderDashboard() {
         revs.push(dv.reduce((s, v) => s + v.total, 0));
     }
 
-    // Test counts
+    // Pruebas más solicitadas
     const tCount = {};
     DB.visitas.forEach(v => v.pruebas.forEach(p => { tCount[p.nombre] = (tCount[p.nombre] || 0) + 1; }));
 
-    // Gender
+    // género
     const gen = { Femenino: 0, Masculino: 0 };
     Object.values(DB.pacientes).forEach(p => {
         if (p.genero === 'Femenino' || p.genero === 'Masculino') gen[p.genero]++;
@@ -659,9 +689,7 @@ function renderDashboard() {
     </table></div>`;
 }
 
-// ════════════════════════════════════════════
 // REPORTE
-// ════════════════════════════════════════════
 function getVisitasDia(fecha) {
     return DB.visitas.filter(v => v.fecha.startsWith(fecha));
 }
@@ -718,7 +746,7 @@ async function generarPDF() {
     const W = 210, M = 14;
     let y = M;
 
-    // Header gradient-style
+    // Header
     doc.setFillColor(21, 101, 192);
     doc.rect(0, 0, W, 30, 'F');
     doc.setFillColor(46, 125, 50);
@@ -727,7 +755,7 @@ async function generarPDF() {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
-    doc.text('LabClin', M, 13);
+    doc.text('LabClin Ordoñez', M, 13);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.text('Sistema de Gestión de Laboratorio Clínico', M, 20);
@@ -736,7 +764,7 @@ async function generarPDF() {
     doc.text(`Generado: ${new Date().toLocaleString('es-VE')}`, W - M, 20, { align: 'right' });
     y = 40;
 
-    // Summary row
+    // Resumen
     const total = vis.reduce((s, v) => s + v.total, 0);
     const bx = (W - M * 2) / 3;
     const summaries = [
@@ -756,7 +784,7 @@ async function generarPDF() {
     });
     y += 22;
 
-    // Table header
+    // tabla de visitas
     doc.setFillColor(21, 101, 192);
     doc.rect(M, y, W - M * 2, 8, 'F');
     doc.setTextColor(255, 255, 255);
@@ -817,17 +845,15 @@ async function generarPDF() {
     for (let i = 1; i <= pgs; i++) {
         doc.setPage(i);
         doc.setFontSize(7); doc.setTextColor(150, 150, 150); doc.setFont('helvetica', 'normal');
-        doc.text('LabClin — Sistema de Gestión de Laboratorio Clínico', M, 293);
+        doc.text('LabClin Ordoñez — Sistema de Gestión de Laboratorio Clínico', M, 293);
         doc.text(`Pág. ${i} de ${pgs}`, W - M, 293, { align: 'right' });
     }
 
-    doc.save(`LabClin_Reporte_${fecha}.pdf`);
+    doc.save(`LabClin_Ordoñez_Reporte_${fecha}.pdf`);
     toast('PDF generado y descargado', 'success');
 }
 
-// ════════════════════════════════════════════
 // UTILS
-// ════════════════════════════════════════════
 function show(id) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -861,11 +887,12 @@ function openLightbox(src) {
     document.getElementById('lightbox').classList.add('open');
 }
 
-// Make sure inline handlers in HTML always resolve these actions.
+// asegurar funciones globales para HTML
 window.desbloquearEdicion = desbloquearEdicion;
 window.cancelarEdicion = cancelarEdicion;
 window.guardarEdicion = guardarEdicion;
 window.eliminarPaciente = eliminarPaciente;
+window.attemptLogin = attemptLogin;
 
 // INIT
-renderDashboard();
+initLogin();
