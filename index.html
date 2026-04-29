@@ -71,6 +71,11 @@
         <button class="nav-btn" onclick="showPage('registro')" id="nav-registro">
           <span class="icon"><i class="bi bi-plus-circle-fill" aria-hidden="true"></i></span> Nuevo Registro
         </button>
+        <button class="nav-btn" onclick="showPage('en-curso')" id="nav-en-curso">
+          <span class="icon"><i class="bi bi-hourglass-split" aria-hidden="true"></i></span>
+          Pruebas en Curso
+          <span class="sidebar-badge" id="badgeEnCurso" style="display:none;">0</span>
+        </button>
         <button class="nav-btn" onclick="showPage('expedientes')" id="nav-expedientes">
           <span class="icon"><i class="bi bi-journal-medical" aria-hidden="true"></i></span> Expedientes
         </button>
@@ -275,6 +280,7 @@
           <!-- nueva visita -->
           <div class="card" id="cardNuevaVisita" style="display:none;">
             <div class="card-title">Nueva Visita — Pruebas a Realizar</div>
+            <p style="font-size:0.83rem;color:var(--ink4);margin-bottom:14px;">Selecciona las pruebas. Los resultados se cargarán después en <strong>Pruebas en Curso</strong>.</p>
             <div class="tests-grid" id="testsGrid"></div>
 
             <div class="selected-tests-section" id="selectedTestsSection"></div>
@@ -286,8 +292,22 @@
 
             <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:18px;">
               <button class="btn btn-secondary" onclick="resetRegistro()">Cancelar</button>
-              <button class="btn btn-green" onclick="guardarRegistro()"><i class="bi bi-floppy-fill"
-                  aria-hidden="true"></i> Guardar Registro</button>
+              <button class="btn btn-green" onclick="guardarRegistro()"><i class="bi bi-hourglass-split"
+                  aria-hidden="true"></i> Enviar a Pruebas en Curso</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRUEBAS EN CURSO -->
+        <div class="page" id="page-en-curso">
+          <div class="page-header">
+            <h1>Pruebas en Curso</h1>
+            <p>Pacientes con pruebas pendientes. Marca cada prueba como lista antes de pasar al expediente.</p>
+          </div>
+          <div id="enCursoList">
+            <div class="empty">
+              <div class="empty-icon"><i class="bi bi-hourglass" aria-hidden="true"></i></div>
+              <p>No hay pruebas en curso</p>
             </div>
           </div>
         </div>
@@ -433,6 +453,30 @@
           <button class="btn btn-secondary" onclick="cerrarModalClaveAdmin()">Cancelar</button>
           <button class="btn btn-danger" onclick="confirmarEliminarPrueba()"><i class="bi bi-trash"
               aria-hidden="true"></i> Eliminar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: Marcar prueba como lista -->
+    <div class="modal-overlay" id="mlModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Registrar Resultado</h3>
+          <button class="modal-close" onclick="cerrarModalMarcarLista()" aria-label="Cerrar"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+        </div>
+        <p class="pruebas-form-note" id="mlNombrePrueba" style="font-weight:600;font-size:0.9rem;color:var(--ink1);"></p>
+        <div class="form-group" style="margin-top:12px;">
+          <label>Resultado</label>
+          <input type="text" id="mlResultado" placeholder="Ingresa el resultado de la prueba...">
+        </div>
+        <div class="form-group">
+          <label>Imagen (opcional)</label>
+          <input type="file" id="mlFileInput" accept="image/*" onchange="mlOnFileChange(this)" style="font-size:0.83rem;">
+          <img id="mlImgPreview" src="" alt="Vista previa" style="display:none;max-width:100%;max-height:200px;border-radius:8px;margin-top:8px;object-fit:contain;border:1px solid var(--border);">
+        </div>
+        <div class="pruebas-form-actions" style="margin-top:16px;">
+          <button class="btn btn-secondary" onclick="cerrarModalMarcarLista()">Cancelar</button>
+          <button class="btn btn-green" onclick="confirmarMarcarLista()"><i class="bi bi-check2-circle" aria-hidden="true"></i> Marcar como Lista</button>
         </div>
       </div>
     </div>

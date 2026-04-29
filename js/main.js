@@ -136,10 +136,16 @@ let CATALOG = loadCatalog();
 
 
 // BDD (localStorage)
-let DB = { pacientes: {}, visitas: [] };
+let DB = { pacientes: {}, visitas: [], visitasPendientes: [] };
 
 function loadDB() {
-    try { const s = localStorage.getItem('lc_db_v2'); if (s) DB = JSON.parse(s); } catch (e) { }
+    try {
+        const s = localStorage.getItem('lc_db_v2');
+        if (s) {
+            DB = JSON.parse(s);
+            if (!Array.isArray(DB.visitasPendientes)) DB.visitasPendientes = [];
+        }
+    } catch (e) { }
 }
 function saveDB() {
     localStorage.setItem('lc_db_v2', JSON.stringify(DB));
@@ -210,6 +216,7 @@ function showPage(name) {
     if (name === 'pruebas') renderPruebasAdmin();
     if (name === 'registro') { resetRegistro(); }
     if (name === 'reporte') { document.getElementById('reportDate').value = today(); }
+    if (name === 'en-curso') renderEnCurso();
 }
 
 // TOPBAR DATE
@@ -638,34 +645,16 @@ function renderSelectedTests() {
         return;
     }
 
-    el.innerHTML = items.map(p => `
-    <div class="test-row-selected">
-      <div style="flex:1">
-        <div class="test-row-header">
-          <span class="test-row-name">${p.nombre}</span>
-          <span class="test-row-price">$${p.precio.toFixed(2)}</span>
-        </div>
-        <div style="margin-top:9px;">
-          <div class="test-result-label">Resultado (opcional)</div>
-          <div class="test-result-input">
-            <input type="text" placeholder="Ingresa el resultado o déjalo en blanco..." 
-              value="${escHtml(regState.selectedTests[p.id]?.resultado || '')}"
-              oninput="setTestResult('${p.id}', this.value)">
-          </div>
-        </div>
-        <div style="margin-top:8px;">
-          <div class="test-result-label">Imagen (opcional)</div>
-          <div class="test-img-row">
-            <input type="file" accept="image/*" onchange="setTestImage('${p.id}', this)" style="font-size:0.78rem; padding:4px 0; background:none; border:none; color:var(--ink3);">
-            <img id="prev-${p.id}" class="test-img-preview ${regState.selectedTests[p.id]?.imagenData ? 'show' : ''}" 
-              src="${regState.selectedTests[p.id]?.imagenData || ''}"
-              onclick="openLightbox('${regState.selectedTests[p.id]?.imagenData || ''}')">
-          </div>
-        </div>
+    el.innerHTML = `
+    <div class="selected-list">
+      ${items.map(p => `
+      <div class="test-row-selected">
+        <span class="test-row-name">${p.nombre}</span>
+        <span class="test-row-price">$${p.precio.toFixed(2)}</span>
+        <button class="btn btn-danger btn-sm" onclick="toggleTest('${p.id}')"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
       </div>
-      <button class="btn btn-danger btn-sm" style="align-self:flex-start;margin-top:2px;" onclick="toggleTest('${p.id}')"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
-    </div>
-  `).join('');
+      `).join('')}
+    </div>`;
 
     const total = items.reduce((s, p) => s + p.precio, 0);
     amt.textContent = '$' + total.toFixed(2);
@@ -717,8 +706,9 @@ function guardarRegistro() {
             id: p.id,
             nombre: p.nombre,
             precio: p.precio,
-            resultado: regState.selectedTests[p.id]?.resultado || '',
-            imagen: regState.selectedTests[p.id]?.imagenData || '',
+            lista: false,
+            resultado: '',
+            imagen: '',
         }));
 
     const visita = {
@@ -729,10 +719,188 @@ function guardarRegistro() {
         total: pruebas.reduce((s, p) => s + p.precio, 0),
     };
 
-    DB.visitas.push(visita);
+    DB.visitasPendientes.push(visita);
     saveDB();
-    toast(`Registro guardado: ${DB.pacientes[cedula].nombre}`, 'success');
+    actualizarBadgeEnCurso();
+    toast(`Pruebas enviadas a "Pruebas en Curso": ${DB.pacientes[cedula].nombre}`, 'success');
     resetRegistro();
+}
+
+// ─── PRUEBAS EN CURSO ────────────────────────────────────────────────────────
+
+function actualizarBadgeEnCurso() {
+    const count = DB.visitasPendientes.length;
+    const badge = document.getElementById('badgeEnCurso');
+    if (!badge) return;
+    if (count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'inline-flex';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function renderEnCurso() {
+    actualizarBadgeEnCurso();
+    const el = document.getElementById('enCursoList');
+    if (!el) return;
+
+    if (DB.visitasPendientes.length === 0) {
+        el.innerHTML = `
+        <div class="empty">
+          <div class="empty-icon"><i class="bi bi-hourglass" aria-hidden="true"></i></div>
+          <p>No hay pruebas en curso</p>
+        </div>`;
+        return;
+    }
+
+    el.innerHTML = DB.visitasPendientes.map(v => {
+        const pac = DB.pacientes[v.cedula];
+        const todasListas = v.pruebas.every(p => p.lista);
+        return `
+        <div class="ec-card" id="ec-${v.id}">
+          <div class="ec-card-header">
+            <div class="ec-patient-info">
+              <div class="ec-patient-name">${pac?.nombre || '—'}</div>
+              <div class="ec-patient-meta">
+                <span><i class="bi bi-person-vcard" aria-hidden="true"></i> ${v.cedula}</span>
+                <span><i class="bi bi-calendar-event" aria-hidden="true"></i>
+                  ${new Date(v.fecha).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  ${new Date(v.fecha).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span><strong>$${v.total.toFixed(2)}</strong></span>
+              </div>
+            </div>
+            <div class="ec-header-actions">
+              ${todasListas
+                ? `<button class="btn btn-green btn-sm" onclick="moverAlExpediente('${v.id}')">
+                     <i class="bi bi-check2-circle" aria-hidden="true"></i> Pasar al Expediente
+                   </button>`
+                : `<span class="badge badge-orange">Pendiente</span>`
+              }
+            </div>
+          </div>
+          <div class="ec-pruebas-list">
+            ${v.pruebas.map(p => `
+            <div class="ec-prueba-row ${p.lista ? 'is-lista' : ''}" id="ecpr-${v.id}-${p.id}">
+              <div class="ec-prueba-info">
+                <div class="ec-prueba-status-dot ${p.lista ? 'done' : ''}"></div>
+                <span class="ec-prueba-nombre">${p.nombre}</span>
+                <span class="ec-prueba-precio">$${p.precio.toFixed(2)}</span>
+                ${p.lista ? `<span class="badge badge-green">Lista</span>` : `<span class="badge badge-gray">Pendiente</span>`}
+              </div>
+              <div class="ec-prueba-resultado">
+                ${p.resultado ? `<div class="vtl-result"><i class="bi bi-card-text" aria-hidden="true"></i> ${escHtml(p.resultado)}</div>` : ''}
+                ${p.imagen ? `<img src="${p.imagen}" class="vtl-img" onclick="openLightbox('${p.imagen}')" title="Ver imagen">` : ''}
+              </div>
+              <div class="ec-prueba-actions">
+                ${!p.lista
+                  ? `<button class="btn btn-outline-blue btn-sm" onclick="abrirMarcarLista('${v.id}', '${p.id}')">
+                       <i class="bi bi-check2-circle" aria-hidden="true"></i> Marcar como Lista
+                     </button>`
+                  : `<button class="btn btn-secondary btn-sm" onclick="abrirMarcarLista('${v.id}', '${p.id}')">
+                       <i class="bi bi-pencil-square" aria-hidden="true"></i> Editar
+                     </button>`
+                }
+              </div>
+            </div>
+            `).join('')}
+          </div>
+        </div>`;
+    }).join('');
+}
+
+// estado temporal del modal de marcar lista
+let _mlVisitaId = '';
+let _mlPruebaId = '';
+let _mlImagenData = '';
+
+function abrirMarcarLista(visitaId, pruebaId) {
+    const visita = DB.visitasPendientes.find(v => v.id === visitaId);
+    if (!visita) return;
+    const prueba = visita.pruebas.find(p => p.id === pruebaId);
+    if (!prueba) return;
+
+    _mlVisitaId = visitaId;
+    _mlPruebaId = pruebaId;
+    _mlImagenData = prueba.imagen || '';
+
+    const modal = document.getElementById('mlModal');
+    document.getElementById('mlNombrePrueba').textContent = prueba.nombre;
+    document.getElementById('mlResultado').value = prueba.resultado || '';
+    document.getElementById('mlImgPreview').src = _mlImagenData;
+    document.getElementById('mlImgPreview').style.display = _mlImagenData ? 'block' : 'none';
+    document.getElementById('mlFileInput').value = '';
+    if (modal) modal.classList.add('open');
+}
+
+function cerrarModalMarcarLista() {
+    _mlVisitaId = '';
+    _mlPruebaId = '';
+    _mlImagenData = '';
+    const modal = document.getElementById('mlModal');
+    if (modal) modal.classList.remove('open');
+}
+
+function mlOnFileChange(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        _mlImagenData = e.target.result;
+        const prev = document.getElementById('mlImgPreview');
+        if (prev) { prev.src = _mlImagenData; prev.style.display = 'block'; }
+    };
+    reader.readAsDataURL(file);
+}
+
+function confirmarMarcarLista() {
+    const visita = DB.visitasPendientes.find(v => v.id === _mlVisitaId);
+    if (!visita) { cerrarModalMarcarLista(); return; }
+    const prueba = visita.pruebas.find(p => p.id === _mlPruebaId);
+    if (!prueba) { cerrarModalMarcarLista(); return; }
+
+    prueba.lista = true;
+    prueba.resultado = document.getElementById('mlResultado').value.trim();
+    prueba.imagen = _mlImagenData;
+
+    saveDB();
+    cerrarModalMarcarLista();
+    renderEnCurso();
+    toast('Prueba marcada como lista', 'success');
+}
+
+function moverAlExpediente(visitaId) {
+    const idx = DB.visitasPendientes.findIndex(v => v.id === visitaId);
+    if (idx === -1) { toast('Visita no encontrada', 'error'); return; }
+
+    const visita = DB.visitasPendientes[idx];
+    if (!visita.pruebas.every(p => p.lista)) {
+        toast('Aún hay pruebas pendientes', 'error');
+        return;
+    }
+
+    // Limpiar campo helper antes de mover
+    const visitaFinal = {
+        id: visita.id,
+        cedula: visita.cedula,
+        fecha: visita.fecha,
+        total: visita.total,
+        pruebas: visita.pruebas.map(p => ({
+            id: p.id,
+            nombre: p.nombre,
+            precio: p.precio,
+            resultado: p.resultado,
+            imagen: p.imagen,
+        })),
+    };
+
+    DB.visitas.push(visitaFinal);
+    DB.visitasPendientes.splice(idx, 1);
+    saveDB();
+    actualizarBadgeEnCurso();
+    renderEnCurso();
+    toast(`Visita movida al expediente`, 'success');
 }
 
 // EXPEDIENTES
@@ -852,19 +1020,22 @@ function eliminarPaciente(cedula, volverAExpedientes = false) {
     }
 
     const visitasAsociadas = DB.visitas.filter(v => v.cedula === cedula).length;
+    const pendientesAsociadas = DB.visitasPendientes.filter(v => v.cedula === cedula).length;
     const confirmado = window.confirm(
-        `Se eliminará el paciente "${pac.nombre}" y ${visitasAsociadas} visita(s) asociada(s). Esta acción no se puede deshacer.\n\n¿Deseas continuar?`
+        `Se eliminará el paciente "${pac.nombre}", ${visitasAsociadas} visita(s) en expediente y ${pendientesAsociadas} visita(s) en curso. Esta acción no se puede deshacer.\n\n¿Deseas continuar?`
     );
     if (!confirmado) return;
 
     delete DB.pacientes[cedula];
     DB.visitas = DB.visitas.filter(v => v.cedula !== cedula);
+    DB.visitasPendientes = DB.visitasPendientes.filter(v => v.cedula !== cedula);
 
     if (regState.cedula === cedula) {
         resetRegistro();
     }
 
     saveDB();
+    actualizarBadgeEnCurso();
     toast('Paciente eliminado correctamente', 'success');
 
     if (volverAExpedientes) {
@@ -889,6 +1060,7 @@ function renderDashboard() {
     document.getElementById('s-revenue').textContent = '$' + revHoy.toFixed(2);
     document.getElementById('s-total').textContent = Object.keys(DB.pacientes).length;
     document.getElementById('s-tests').textContent = testHoy;
+    actualizarBadgeEnCurso();
 
     // 7 días
     const labels = [], days = [], revs = [];
@@ -1182,7 +1354,13 @@ window.eliminarPrueba = eliminarPrueba;
 window.resetPruebaForm = resetPruebaForm;
 window.cerrarModalClaveAdmin = cerrarModalClaveAdmin;
 window.confirmarEliminarPrueba = confirmarEliminarPrueba;
+window.abrirMarcarLista = abrirMarcarLista;
+window.cerrarModalMarcarLista = cerrarModalMarcarLista;
+window.mlOnFileChange = mlOnFileChange;
+window.confirmarMarcarLista = confirmarMarcarLista;
+window.moverAlExpediente = moverAlExpediente;
 
 // INIT
 initLogin();
 initPruebasAdmin();
+actualizarBadgeEnCurso();
