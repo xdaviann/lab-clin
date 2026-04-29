@@ -1,6 +1,6 @@
 
 // CONFIG — CATÁLOGO DE PRUEBAS
-const CATALOG = [
+const DEFAULT_CATALOG = [
     { id: 'hematologia-completa', nombre: 'HEMATOLOGIA COMPLETA', precio: 5.00 },
     { id: 'frotis-de-sangre-periferica-fsp', nombre: 'FROTIS DE SANGRE PERIFERICA (FSP)', precio: 7.00 },
     { id: 'tp-tiempo-de-protombri', nombre: 'TP (TIEMPO DE PROTOMBRINA)', precio: 5.00 },
@@ -79,6 +79,60 @@ const CATALOG = [
 
 const AUTH_USER = 'admin';
 const AUTH_PASS = 'admin123';
+const ADMIN_DELETE_KEY = AUTH_PASS;
+const CATALOG_STORAGE_KEY = 'lc_catalog_v1';
+
+function normalizeCatalogItem(item) {
+    if (!item || typeof item !== 'object') return null;
+    const id = String(item.id || '').trim();
+    const nombre = String(item.nombre || '').trim();
+    const precio = Number(item.precio);
+    if (!id || !nombre || !Number.isFinite(precio)) return null;
+    return {
+        id,
+        nombre,
+        precio: Number(precio.toFixed(2)),
+    };
+}
+
+function loadCatalog() {
+    try {
+        const raw = localStorage.getItem(CATALOG_STORAGE_KEY);
+        if (!raw) return DEFAULT_CATALOG.map(item => ({ ...item }));
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return DEFAULT_CATALOG.map(item => ({ ...item }));
+        const normalized = parsed.map(normalizeCatalogItem).filter(Boolean);
+        return normalized.length ? normalized : DEFAULT_CATALOG.map(item => ({ ...item }));
+    } catch (e) {
+        return DEFAULT_CATALOG.map(item => ({ ...item }));
+    }
+}
+
+function saveCatalog() {
+    localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(CATALOG));
+}
+
+function slugifyCatalogName(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+function makeUniqueCatalogId(baseId, ignoreId = '') {
+    const safeBase = baseId || 'prueba';
+    let candidate = safeBase;
+    let counter = 2;
+    while (CATALOG.some(item => item.id === candidate && item.id !== ignoreId)) {
+        candidate = `${safeBase}-${counter}`;
+        counter += 1;
+    }
+    return candidate;
+}
+
+let CATALOG = loadCatalog();
 
 
 // BDD (localStorage)
@@ -153,6 +207,7 @@ function showPage(name) {
 
     if (name === 'dashboard') renderDashboard();
     if (name === 'expedientes') renderExpedientes();
+    if (name === 'pruebas') renderPruebasAdmin();
     if (name === 'registro') { resetRegistro(); }
     if (name === 'reporte') { document.getElementById('reportDate').value = today(); }
 }
@@ -282,6 +337,234 @@ function guardarEdicion() {
     renderCardLocked(pac);
     hide('formEdit');
     toast('Datos actualizados', 'success');
+}
+
+// PRUEBAS — MANTENIMIENTO
+let pruebaEditId = '';
+let pendingPruebaDeleteId = '';
+
+function syncPruebaCodigo() {
+    const codigoEl = document.getElementById('pruebaId');
+    const nombreEl = document.getElementById('pruebaNombre');
+    if (!codigoEl || !nombreEl) return;
+    if (pruebaEditId) {
+        codigoEl.value = pruebaEditId;
+        return;
+    }
+    codigoEl.value = slugifyCatalogName(nombreEl.value.trim());
+}
+
+function setPruebaFormMode(editing) {
+    const title = document.getElementById('pruebaFormTitle');
+    const button = document.getElementById('btnGuardarPrueba');
+    const hint = document.getElementById('pruebaFormHint');
+
+    if (title) title.textContent = editing ? 'Editar prueba' : 'Agregar prueba';
+    if (button) {
+        button.innerHTML = editing
+            ? '<i class="bi bi-check2-circle" aria-hidden="true"></i> Actualizar prueba'
+            : '<i class="bi bi-plus-circle-fill" aria-hidden="true"></i> Agregar prueba';
+    }
+    if (hint) {
+        hint.textContent = editing
+            ? 'El código se conserva. Solo se actualizan nombre y precio.'
+            : 'El código se genera automáticamente a partir del nombre.';
+    }
+}
+
+function resetPruebaForm() {
+    pruebaEditId = '';
+    const idEl = document.getElementById('pruebaId');
+    const nombreEl = document.getElementById('pruebaNombre');
+    const precioEl = document.getElementById('pruebaPrecio');
+    if (idEl) idEl.value = '';
+    if (nombreEl) nombreEl.value = '';
+    if (precioEl) precioEl.value = '';
+    setPruebaFormMode(false);
+}
+
+function renderPruebasAdmin() {
+    const table = document.getElementById('pruebasAdminTable');
+    const countEl = document.getElementById('pruebasAdminCount');
+    if (!table) return;
+
+    if (countEl) {
+        countEl.textContent = `${CATALOG.length} prueba${CATALOG.length === 1 ? '' : 's'} registradas`;
+    }
+
+    if (CATALOG.length === 0) {
+        table.innerHTML = '<div class="empty"><div class="empty-icon"><i class="bi bi-flask" aria-hidden="true"></i></div><p>No hay pruebas registradas</p></div>';
+        return;
+    }
+
+    table.innerHTML = `
+    <table>
+      <thead><tr><th>Código</th><th>Nombre</th><th>Precio</th><th></th></tr></thead>
+      <tbody>
+        ${CATALOG.map(item => `
+          <tr>
+            <td><span class="badge badge-gray">${item.id}</span></td>
+            <td><strong>${item.nombre}</strong></td>
+            <td>$${item.precio.toFixed(2)}</td>
+            <td>
+              <div class="pruebas-row-actions">
+                <button class="btn btn-outline-blue btn-sm" onclick="editarPrueba('${item.id}')"><i class="bi bi-pencil-square" aria-hidden="true"></i> Editar</button>
+                <button class="btn btn-danger btn-sm" onclick="eliminarPrueba('${item.id}')"><i class="bi bi-trash" aria-hidden="true"></i> Eliminar</button>
+              </div>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function editarPrueba(id) {
+    const prueba = CATALOG.find(item => item.id === id);
+    if (!prueba) {
+        toast('No se encontró la prueba', 'error');
+        return;
+    }
+
+    pruebaEditId = prueba.id;
+    const idEl = document.getElementById('pruebaId');
+    const nombreEl = document.getElementById('pruebaNombre');
+    const precioEl = document.getElementById('pruebaPrecio');
+    if (idEl) idEl.value = prueba.id;
+    if (nombreEl) nombreEl.value = prueba.nombre;
+    if (precioEl) precioEl.value = prueba.precio.toFixed(2);
+    setPruebaFormMode(true);
+    showPage('pruebas');
+    nombreEl?.focus();
+}
+
+function guardarPrueba() {
+    const nombreEl = document.getElementById('pruebaNombre');
+    const precioEl = document.getElementById('pruebaPrecio');
+    const nombre = nombreEl?.value.trim() || '';
+    const precio = Number(precioEl?.value);
+
+    if (!nombre) {
+        toast('El nombre de la prueba es obligatorio', 'error');
+        return;
+    }
+    if (!Number.isFinite(precio) || precio < 0) {
+        toast('Ingresa un precio válido', 'error');
+        return;
+    }
+
+    const nombreNormalizado = nombre.toUpperCase();
+
+    if (pruebaEditId) {
+        const index = CATALOG.findIndex(item => item.id === pruebaEditId);
+        if (index === -1) {
+            toast('No se encontró la prueba a editar', 'error');
+            resetPruebaForm();
+            return;
+        }
+        CATALOG[index] = {
+            ...CATALOG[index],
+            nombre: nombreNormalizado,
+            precio: Number(precio.toFixed(2)),
+        };
+        saveCatalog();
+        renderPruebasAdmin();
+        renderTestsGrid();
+        renderSelectedTests();
+        toast('Prueba actualizada', 'success');
+        resetPruebaForm();
+        return;
+    }
+
+    const baseId = slugifyCatalogName(nombreNormalizado) || 'prueba';
+    const id = makeUniqueCatalogId(baseId);
+    CATALOG = [...CATALOG, {
+        id,
+        nombre: nombreNormalizado,
+        precio: Number(precio.toFixed(2)),
+    }];
+    saveCatalog();
+    renderPruebasAdmin();
+    renderTestsGrid();
+    renderSelectedTests();
+    toast('Prueba agregada', 'success');
+    resetPruebaForm();
+}
+
+function eliminarPrueba(id) {
+    const prueba = CATALOG.find(item => item.id === id);
+    if (!prueba) {
+        toast('No se encontró la prueba', 'error');
+        return;
+    }
+
+    const confirmacion = window.confirm(`¿Eliminar la prueba "${prueba.nombre}"? Esta acción no se puede deshacer.`);
+    if (!confirmacion) return;
+
+    pendingPruebaDeleteId = id;
+    const modalText = document.getElementById('adminDeleteText');
+    if (modalText) {
+        modalText.textContent = `Vas a eliminar "${prueba.nombre}" del catálogo. Escribe la clave de admin para continuar.`;
+    }
+    const modal = document.getElementById('adminDeleteModal');
+    const input = document.getElementById('adminDeleteKeyInput');
+    if (modal) modal.classList.add('open');
+    setTimeout(() => input?.focus(), 0);
+}
+
+function cerrarModalClaveAdmin() {
+    pendingPruebaDeleteId = '';
+    const modal = document.getElementById('adminDeleteModal');
+    const input = document.getElementById('adminDeleteKeyInput');
+    if (modal) modal.classList.remove('open');
+    if (input) input.value = '';
+}
+
+function confirmarEliminarPrueba() {
+    const input = document.getElementById('adminDeleteKeyInput');
+    const clave = input?.value.trim() || '';
+    if (clave !== ADMIN_DELETE_KEY) {
+        toast('Clave de admin incorrecta', 'error');
+        input?.focus();
+        return;
+    }
+
+    const id = pendingPruebaDeleteId;
+    const prueba = CATALOG.find(item => item.id === id);
+    if (!id || !prueba) {
+        cerrarModalClaveAdmin();
+        toast('No se encontró la prueba', 'error');
+        return;
+    }
+
+    CATALOG = CATALOG.filter(item => item.id !== id);
+    delete regState.selectedTests[id];
+    if (pruebaEditId === id) resetPruebaForm();
+    saveCatalog();
+    renderPruebasAdmin();
+    renderTestsGrid();
+    renderSelectedTests();
+    cerrarModalClaveAdmin();
+    toast('Prueba eliminada', 'success');
+}
+
+function initPruebasAdmin() {
+    const nombreEl = document.getElementById('pruebaNombre');
+    if (nombreEl && !nombreEl.dataset.bound) {
+        nombreEl.addEventListener('input', () => {
+            if (!pruebaEditId) syncPruebaCodigo();
+        });
+        nombreEl.dataset.bound = '1';
+    }
+
+    const precioEl = document.getElementById('pruebaPrecio');
+    if (precioEl && !precioEl.dataset.bound) {
+        precioEl.addEventListener('input', () => { });
+        precioEl.dataset.bound = '1';
+    }
+
+    resetPruebaForm();
+    renderPruebasAdmin();
+    syncPruebaCodigo();
 }
 
 function renderHistorial(cedula) {
@@ -893,6 +1176,13 @@ window.cancelarEdicion = cancelarEdicion;
 window.guardarEdicion = guardarEdicion;
 window.eliminarPaciente = eliminarPaciente;
 window.attemptLogin = attemptLogin;
+window.guardarPrueba = guardarPrueba;
+window.editarPrueba = editarPrueba;
+window.eliminarPrueba = eliminarPrueba;
+window.resetPruebaForm = resetPruebaForm;
+window.cerrarModalClaveAdmin = cerrarModalClaveAdmin;
+window.confirmarEliminarPrueba = confirmarEliminarPrueba;
 
 // INIT
 initLogin();
+initPruebasAdmin();
