@@ -10,6 +10,8 @@
     rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="./styles/style.css">
 </head>
@@ -82,7 +84,7 @@
 
         <div class="sidebar-section">Reportes</div>
         <button class="nav-btn" onclick="showPage('reporte')" id="nav-reporte">
-          <span class="icon"><i class="bi bi-file-earmark-text-fill" aria-hidden="true"></i></span> Reporte del Día
+          <span class="icon"><i class="bi bi-file-earmark-text-fill" aria-hidden="true"></i></span> Generar Reportes
         </button>
 
         <div class="sidebar-section">Pruebas</div>
@@ -280,7 +282,8 @@
           <!-- nueva visita -->
           <div class="card" id="cardNuevaVisita" style="display:none;">
             <div class="card-title">Nueva Visita — Pruebas a Realizar</div>
-            <p style="font-size:0.83rem;color:var(--ink4);margin-bottom:14px;">Selecciona las pruebas. Los resultados se cargarán después en <strong>Pruebas en Curso</strong>.</p>
+            <p style="font-size:0.83rem;color:var(--ink4);margin-bottom:14px;">Selecciona las pruebas. Los resultados se
+              cargarán después en <strong>Pruebas en Curso</strong>.</p>
             <div class="tests-grid" id="testsGrid"></div>
 
             <div class="selected-tests-section" id="selectedTestsSection"></div>
@@ -303,6 +306,15 @@
           <div class="page-header">
             <h1>Pruebas en Curso</h1>
             <p>Pacientes con pruebas pendientes. Marca cada prueba como lista antes de pasar al expediente.</p>
+          </div>
+          <div class="card" style="margin-bottom: 18px; padding: 16px 20px;">
+            <div class="search-row" style="margin-bottom: 0;">
+              <input type="text" placeholder="Buscar paciente por nombre o cédula..." id="enCursoSearch"
+                oninput="renderEnCurso()">
+              <button class="btn btn-secondary btn-sm"
+                onclick="document.getElementById('enCursoSearch').value=''; renderEnCurso()"><i class="bi bi-x-lg"
+                  aria-hidden="true"></i> Limpiar</button>
+            </div>
           </div>
           <div id="enCursoList">
             <div class="empty">
@@ -352,10 +364,25 @@
         <!-- REPORTE -->
         <div class="page" id="page-reporte">
           <div class="page-header">
-            <h1>Reporte del Día</h1>
-            <p>Genera y descarga el reporte en PDF de los pacientes atendidos</p>
+            <h1>Reportes</h1>
+            <p>Genera y descarga reportes en PDF de los pacientes atendidos</p>
           </div>
-          <div class="card">
+
+          <!-- Tabs -->
+          <div class="report-tabs" id="reportTabs">
+            <button class="report-tab active" id="tab-diario" onclick="switchReportTab('diario')">
+              <i class="bi bi-calendar-day" aria-hidden="true"></i> Diario
+            </button>
+            <button class="report-tab" id="tab-semanal" onclick="switchReportTab('semanal')">
+              <i class="bi bi-calendar-week" aria-hidden="true"></i> Semanal
+            </button>
+            <button class="report-tab" id="tab-mensual" onclick="switchReportTab('mensual')">
+              <i class="bi bi-calendar-month" aria-hidden="true"></i> Mensual
+            </button>
+          </div>
+
+          <!-- Panel Diario -->
+          <div class="card report-panel" id="panel-diario">
             <div class="report-bar">
               <div class="form-group">
                 <label>Fecha del Reporte</label>
@@ -367,8 +394,38 @@
                   aria-hidden="true"></i> Ver en Pantalla</button>
             </div>
           </div>
+
+          <!-- Panel Semanal -->
+          <div class="card report-panel" id="panel-semanal" style="display:none;">
+            <div class="report-bar">
+              <div class="form-group">
+                <label>Semana (selecciona cualquier día de la semana)</label>
+                <input type="date" id="reportSemana">
+              </div>
+              <button class="btn btn-gold" onclick="generarPDFSemanal()"><i class="bi bi-file-earmark-text-fill"
+                  aria-hidden="true"></i> Generar PDF</button>
+              <button class="btn btn-secondary" onclick="verEnPantallaSemanal()"><i class="bi bi-eye-fill"
+                  aria-hidden="true"></i> Ver en Pantalla</button>
+            </div>
+          </div>
+
+          <!-- Panel Mensual -->
+          <div class="card report-panel" id="panel-mensual" style="display:none;">
+            <div class="report-bar">
+              <div class="form-group">
+                <label>Mes</label>
+                <input type="month" id="reportMes">
+              </div>
+              <button class="btn btn-gold" onclick="generarPDFMensual()"><i class="bi bi-file-earmark-text-fill"
+                  aria-hidden="true"></i> Generar PDF</button>
+              <button class="btn btn-secondary" onclick="verEnPantallaMensual()"><i class="bi bi-eye-fill"
+                  aria-hidden="true"></i> Ver en Pantalla</button>
+            </div>
+          </div>
+
+          <!-- Vista previa compartida -->
           <div class="card" id="reportPreview" style="display:none;">
-            <div class="card-title">Vista Previa</div>
+            <div class="card-title" id="reportPreviewTitle">Vista Previa</div>
             <div id="reportContent"></div>
           </div>
         </div>
@@ -417,6 +474,13 @@
 
             <div class="card pruebas-admin-list-card">
               <div class="card-title">Catálogo actual</div>
+              <div class="search-row" style="margin-bottom: 16px;">
+                <input type="text" placeholder="Buscar por código o nombre..." id="pruebasSearch"
+                  oninput="renderPruebasAdmin()">
+                <button class="btn btn-secondary btn-sm"
+                  onclick="document.getElementById('pruebasSearch').value=''; renderPruebasAdmin()"><i
+                    class="bi bi-x-lg" aria-hidden="true"></i> Limpiar</button>
+              </div>
               <div class="pruebas-admin-list table-wrap" id="pruebasAdminTable">
                 <div class="empty">
                   <div class="empty-icon"><i class="bi bi-flask" aria-hidden="true"></i></div>
@@ -462,21 +526,26 @@
       <div class="modal">
         <div class="modal-header">
           <h3>Registrar Resultado</h3>
-          <button class="modal-close" onclick="cerrarModalMarcarLista()" aria-label="Cerrar"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+          <button class="modal-close" onclick="cerrarModalMarcarLista()" aria-label="Cerrar"><i class="bi bi-x-lg"
+              aria-hidden="true"></i></button>
         </div>
-        <p class="pruebas-form-note" id="mlNombrePrueba" style="font-weight:600;font-size:0.9rem;color:var(--ink1);"></p>
+        <p class="pruebas-form-note" id="mlNombrePrueba" style="font-weight:600;font-size:0.9rem;color:var(--ink1);">
+        </p>
         <div class="form-group" style="margin-top:12px;">
           <label>Resultado</label>
           <input type="text" id="mlResultado" placeholder="Ingresa el resultado de la prueba...">
         </div>
         <div class="form-group">
           <label>Imagen (opcional)</label>
-          <input type="file" id="mlFileInput" accept="image/*" onchange="mlOnFileChange(this)" style="font-size:0.83rem;">
-          <img id="mlImgPreview" src="" alt="Vista previa" style="display:none;max-width:100%;max-height:200px;border-radius:8px;margin-top:8px;object-fit:contain;border:1px solid var(--border);">
+          <input type="file" id="mlFileInput" accept="image/*" onchange="mlOnFileChange(this)"
+            style="font-size:0.83rem;">
+          <img id="mlImgPreview" src="" alt="Vista previa"
+            style="display:none;max-width:100%;max-height:200px;border-radius:8px;margin-top:8px;object-fit:contain;border:1px solid var(--border);">
         </div>
         <div class="pruebas-form-actions" style="margin-top:16px;">
           <button class="btn btn-secondary" onclick="cerrarModalMarcarLista()">Cancelar</button>
-          <button class="btn btn-green" onclick="confirmarMarcarLista()"><i class="bi bi-check2-circle" aria-hidden="true"></i> Marcar como Lista</button>
+          <button class="btn btn-green" onclick="confirmarMarcarLista()"><i class="bi bi-check2-circle"
+              aria-hidden="true"></i> Marcar como Lista</button>
         </div>
       </div>
     </div>
@@ -485,6 +554,28 @@
 
   </div>
 
+  <!-- Loading overlay -->
+  <div id="loadingOverlay"
+    style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d1b2e 0%,#1565c0 100%);">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:22px;">
+      <div
+        style="width:72px;height:72px;border-radius:50%;border:5px solid rgba(255,255,255,0.15);border-top-color:#fff;animation:spin 0.9s linear infinite;">
+      </div>
+      <div style="font-family:'Nunito',sans-serif;color:#fff;font-size:1.1rem;font-weight:700;letter-spacing:0.05em;">
+        LabClin Ordoñez</div>
+      <div id="loadingMsg" style="font-family:'Nunito Sans',sans-serif;color:rgba(255,255,255,0.7);font-size:0.85rem;">
+        Conectando con Firebase…</div>
+    </div>
+    <style>
+      @keyframes spin {
+        to {
+          transform: rotate(360deg)
+        }
+      }
+    </style>
+  </div>
+
+  <script src="js/firebase-config.js"></script>
   <script src="js/main.js"></script>
 </body>
 

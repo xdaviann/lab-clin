@@ -80,36 +80,20 @@ const DEFAULT_CATALOG = [
 const AUTH_USER = 'admin';
 const AUTH_PASS = 'admin123';
 const ADMIN_DELETE_KEY = AUTH_PASS;
-const CATALOG_STORAGE_KEY = 'lc_catalog_v1';
+// CATALOG — se carga desde Firestore en initApp()
+let CATALOG = [];
 
+// DB — se carga desde Firestore en initApp()
+let DB = { pacientes: {}, visitas: [], visitasPendientes: [] };
+
+// ── Helpers de catálogo ───────────────────────────────────────────────────────
 function normalizeCatalogItem(item) {
     if (!item || typeof item !== 'object') return null;
     const id = String(item.id || '').trim();
     const nombre = String(item.nombre || '').trim();
     const precio = Number(item.precio);
     if (!id || !nombre || !Number.isFinite(precio)) return null;
-    return {
-        id,
-        nombre,
-        precio: Number(precio.toFixed(2)),
-    };
-}
-
-function loadCatalog() {
-    try {
-        const raw = localStorage.getItem(CATALOG_STORAGE_KEY);
-        if (!raw) return DEFAULT_CATALOG.map(item => ({ ...item }));
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) return DEFAULT_CATALOG.map(item => ({ ...item }));
-        const normalized = parsed.map(normalizeCatalogItem).filter(Boolean);
-        return normalized.length ? normalized : DEFAULT_CATALOG.map(item => ({ ...item }));
-    } catch (e) {
-        return DEFAULT_CATALOG.map(item => ({ ...item }));
-    }
-}
-
-function saveCatalog() {
-    localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(CATALOG));
+    return { id, nombre, precio: Number(precio.toFixed(2)) };
 }
 
 function slugifyCatalogName(value) {
@@ -123,35 +107,13 @@ function slugifyCatalogName(value) {
 
 function makeUniqueCatalogId(baseId, ignoreId = '') {
     const safeBase = baseId || 'prueba';
-    let candidate = safeBase;
-    let counter = 2;
+    let candidate = safeBase, counter = 2;
     while (CATALOG.some(item => item.id === candidate && item.id !== ignoreId)) {
         candidate = `${safeBase}-${counter}`;
         counter += 1;
     }
     return candidate;
 }
-
-let CATALOG = loadCatalog();
-
-
-// BDD (localStorage)
-let DB = { pacientes: {}, visitas: [], visitasPendientes: [] };
-
-function loadDB() {
-    try {
-        const s = localStorage.getItem('lc_db_v2');
-        if (s) {
-            DB = JSON.parse(s);
-            if (!Array.isArray(DB.visitasPendientes)) DB.visitasPendientes = [];
-        }
-    } catch (e) { }
-}
-function saveDB() {
-    localStorage.setItem('lc_db_v2', JSON.stringify(DB));
-}
-loadDB();
-
 
 // ESTADO DE REGISTRO
 
@@ -340,7 +302,8 @@ function guardarEdicion() {
     pac.nacimiento = document.getElementById('fe-nacimiento').value;
     pac.telefono = document.getElementById('fe-telefono').value.trim();
     pac.direccion = document.getElementById('fe-direccion').value.trim();
-    saveDB();
+    db.collection('pacientes').doc(regState.cedula).set(pac)
+        .catch(() => toast('Error al guardar en la nube', 'error'));
     renderCardLocked(pac);
     hide('formEdit');
     toast('Datos actualizados', 'success');
@@ -393,14 +356,29 @@ function resetPruebaForm() {
 function renderPruebasAdmin() {
     const table = document.getElementById('pruebasAdminTable');
     const countEl = document.getElementById('pruebasAdminCount');
+    const searchEl = document.getElementById('pruebasSearch');
+    const query = searchEl ? searchEl.value.toLowerCase().trim() : '';
+
     if (!table) return;
 
-    if (countEl) {
-        countEl.textContent = `${CATALOG.length} prueba${CATALOG.length === 1 ? '' : 's'} registradas`;
+    let filteredCatalog = CATALOG;
+    if (query) {
+        filteredCatalog = CATALOG.filter(item =>
+            item.nombre.toLowerCase().includes(query) ||
+            item.id.toLowerCase().includes(query)
+        );
     }
 
-    if (CATALOG.length === 0) {
-        table.innerHTML = '<div class="empty"><div class="empty-icon"><i class="bi bi-flask" aria-hidden="true"></i></div><p>No hay pruebas registradas</p></div>';
+    if (countEl) {
+        countEl.textContent = `${filteredCatalog.length} prueba${filteredCatalog.length === 1 ? '' : 's'} registradas`;
+    }
+
+    if (filteredCatalog.length === 0) {
+        if (query && CATALOG.length > 0) {
+            table.innerHTML = '<div class="empty"><div class="empty-icon"><i class="bi bi-search" aria-hidden="true"></i></div><p>No se encontraron pruebas</p></div>';
+        } else {
+            table.innerHTML = '<div class="empty"><div class="empty-icon"><i class="bi bi-flask" aria-hidden="true"></i></div><p>No hay pruebas registradas</p></div>';
+        }
         return;
     }
 
@@ -408,7 +386,7 @@ function renderPruebasAdmin() {
     <table>
       <thead><tr><th>Código</th><th>Nombre</th><th>Precio</th><th></th></tr></thead>
       <tbody>
-        ${CATALOG.map(item => `
+        ${filteredCatalog.map(item => `
           <tr>
             <td><span class="badge badge-gray">${item.id}</span></td>
             <td><strong>${item.nombre}</strong></td>
@@ -473,7 +451,9 @@ function guardarPrueba() {
             nombre: nombreNormalizado,
             precio: Number(precio.toFixed(2)),
         };
-        saveCatalog();
+        const updatedItem = CATALOG[index];
+        db.collection('catalogo').doc(updatedItem.id).set(updatedItem)
+            .catch(() => toast('Error al guardar en la nube', 'error'));
         renderPruebasAdmin();
         renderTestsGrid();
         renderSelectedTests();
@@ -484,12 +464,10 @@ function guardarPrueba() {
 
     const baseId = slugifyCatalogName(nombreNormalizado) || 'prueba';
     const id = makeUniqueCatalogId(baseId);
-    CATALOG = [...CATALOG, {
-        id,
-        nombre: nombreNormalizado,
-        precio: Number(precio.toFixed(2)),
-    }];
-    saveCatalog();
+    const newItem = { id, nombre: nombreNormalizado, precio: Number(precio.toFixed(2)) };
+    CATALOG = [...CATALOG, newItem];
+    db.collection('catalogo').doc(id).set(newItem)
+        .catch(() => toast('Error al guardar en la nube', 'error'));
     renderPruebasAdmin();
     renderTestsGrid();
     renderSelectedTests();
@@ -546,7 +524,8 @@ function confirmarEliminarPrueba() {
     CATALOG = CATALOG.filter(item => item.id !== id);
     delete regState.selectedTests[id];
     if (pruebaEditId === id) resetPruebaForm();
-    saveCatalog();
+    db.collection('catalogo').doc(id).delete()
+        .catch(() => toast('Error al eliminar en la nube', 'error'));
     renderPruebasAdmin();
     renderTestsGrid();
     renderSelectedTests();
@@ -720,7 +699,12 @@ function guardarRegistro() {
     };
 
     DB.visitasPendientes.push(visita);
-    saveDB();
+    if (regState.modo === 'nuevo') {
+        db.collection('pacientes').doc(cedula).set(DB.pacientes[cedula])
+            .catch(() => toast('Error al guardar paciente en la nube', 'error'));
+    }
+    db.collection('visitasPendientes').doc(visita.id).set(visita)
+        .catch(() => toast('Error al guardar visita en la nube', 'error'));
     actualizarBadgeEnCurso();
     toast(`Pruebas enviadas a "Pruebas en Curso": ${DB.pacientes[cedula].nombre}`, 'success');
     resetRegistro();
@@ -743,18 +727,38 @@ function actualizarBadgeEnCurso() {
 function renderEnCurso() {
     actualizarBadgeEnCurso();
     const el = document.getElementById('enCursoList');
+    const searchEl = document.getElementById('enCursoSearch');
+    const query = searchEl ? searchEl.value.toLowerCase().trim() : '';
+
     if (!el) return;
 
-    if (DB.visitasPendientes.length === 0) {
-        el.innerHTML = `
-        <div class="empty">
-          <div class="empty-icon"><i class="bi bi-hourglass" aria-hidden="true"></i></div>
-          <p>No hay pruebas en curso</p>
-        </div>`;
+    let filteredPendientes = DB.visitasPendientes;
+    if (query) {
+        filteredPendientes = DB.visitasPendientes.filter(v => {
+            const pac = DB.pacientes[v.cedula];
+            const nombre = pac ? pac.nombre.toLowerCase() : '';
+            return nombre.includes(query) || v.cedula.toLowerCase().includes(query);
+        });
+    }
+
+    if (filteredPendientes.length === 0) {
+        if (query && DB.visitasPendientes.length > 0) {
+            el.innerHTML = `
+            <div class="empty">
+              <div class="empty-icon"><i class="bi bi-search" aria-hidden="true"></i></div>
+              <p>No se encontraron pacientes que coincidan con la búsqueda</p>
+            </div>`;
+        } else {
+            el.innerHTML = `
+            <div class="empty">
+              <div class="empty-icon"><i class="bi bi-hourglass" aria-hidden="true"></i></div>
+              <p>No hay pruebas en curso</p>
+            </div>`;
+        }
         return;
     }
 
-    el.innerHTML = DB.visitasPendientes.map(v => {
+    el.innerHTML = filteredPendientes.map(v => {
         const pac = DB.pacientes[v.cedula];
         const todasListas = v.pruebas.every(p => p.lista);
         return `
@@ -777,7 +781,7 @@ function renderEnCurso() {
                      <i class="bi bi-check2-circle" aria-hidden="true"></i> Pasar al Expediente
                    </button>`
                 : `<span class="badge badge-orange">Pendiente</span>`
-              }
+            }
             </div>
           </div>
           <div class="ec-pruebas-list">
@@ -795,10 +799,10 @@ function renderEnCurso() {
               </div>
               <div class="ec-prueba-actions">
                 ${!p.lista
-                  ? `<button class="btn btn-outline-blue btn-sm" onclick="abrirMarcarLista('${v.id}', '${p.id}')">
+                    ? `<button class="btn btn-outline-blue btn-sm" onclick="abrirMarcarLista('${v.id}', '${p.id}')">
                        <i class="bi bi-check2-circle" aria-hidden="true"></i> Marcar como Lista
                      </button>`
-                  : `<button class="btn btn-secondary btn-sm" onclick="abrirMarcarLista('${v.id}', '${p.id}')">
+                    : `<button class="btn btn-secondary btn-sm" onclick="abrirMarcarLista('${v.id}', '${p.id}')">
                        <i class="bi bi-pencil-square" aria-hidden="true"></i> Editar
                      </button>`
                 }
@@ -864,7 +868,8 @@ function confirmarMarcarLista() {
     prueba.resultado = document.getElementById('mlResultado').value.trim();
     prueba.imagen = _mlImagenData;
 
-    saveDB();
+    db.collection('visitasPendientes').doc(_mlVisitaId).set(visita)
+        .catch(() => toast('Error al guardar en la nube', 'error'));
     cerrarModalMarcarLista();
     renderEnCurso();
     toast('Prueba marcada como lista', 'success');
@@ -897,7 +902,10 @@ function moverAlExpediente(visitaId) {
 
     DB.visitas.push(visitaFinal);
     DB.visitasPendientes.splice(idx, 1);
-    saveDB();
+    const _batch = db.batch();
+    _batch.set(db.collection('visitas').doc(visitaFinal.id), visitaFinal);
+    _batch.delete(db.collection('visitasPendientes').doc(visitaId));
+    _batch.commit().catch(() => toast('Error al mover al expediente', 'error'));
     actualizarBadgeEnCurso();
     renderEnCurso();
     toast(`Visita movida al expediente`, 'success');
@@ -980,7 +988,12 @@ function verExpediente(cedula) {
         <div class="visit-block">
           <div class="visit-block-header">
             <span class="visit-block-date"><i class="bi bi-calendar-event" aria-hidden="true"></i> ${new Date(v.fecha).toLocaleDateString('es-VE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })} — ${new Date(v.fecha).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}</span>
-            <span class="visit-block-total">$${v.total.toFixed(2)}</span>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="visit-block-total">$${v.total.toFixed(2)}</span>
+              <button class="btn btn-gold btn-sm" onclick="generarFacturaVisita('${v.id}')" title="Generar factura PDF">
+                <i class="bi bi-receipt" aria-hidden="true"></i> Factura
+              </button>
+            </div>
           </div>
           <div class="visit-tests-list">
             ${v.pruebas.map(p => `
@@ -1026,16 +1039,22 @@ function eliminarPaciente(cedula, volverAExpedientes = false) {
     );
     if (!confirmado) return;
 
+    const visitasElim = DB.visitas.filter(v => v.cedula === cedula);
+    const pendElim = DB.visitasPendientes.filter(v => v.cedula === cedula);
     delete DB.pacientes[cedula];
     DB.visitas = DB.visitas.filter(v => v.cedula !== cedula);
     DB.visitasPendientes = DB.visitasPendientes.filter(v => v.cedula !== cedula);
 
-    if (regState.cedula === cedula) {
-        resetRegistro();
-    }
+    if (regState.cedula === cedula) { resetRegistro(); }
 
-    saveDB();
+    const _delBatch = db.batch();
+    _delBatch.delete(db.collection('pacientes').doc(cedula));
+    visitasElim.forEach(v => _delBatch.delete(db.collection('visitas').doc(v.id)));
+    pendElim.forEach(v => _delBatch.delete(db.collection('visitasPendientes').doc(v.id)));
+    _delBatch.commit().catch(() => toast('Error al eliminar en la nube', 'error'));
+
     actualizarBadgeEnCurso();
+
     toast('Paciente eliminado correctamente', 'success');
 
     if (volverAExpedientes) {
@@ -1144,9 +1163,423 @@ function renderDashboard() {
     </table></div>`;
 }
 
-// REPORTE
+// REPORTES ────────────────────────────────────────────────────────────────────
+
 function getVisitasDia(fecha) {
     return DB.visitas.filter(v => v.fecha.startsWith(fecha));
+}
+
+function getVisitasRango(fechaInicio, fechaFin) {
+    const ini = new Date(fechaInicio + 'T00:00:00');
+    const fin = new Date(fechaFin   + 'T23:59:59');
+    return DB.visitas.filter(v => {
+        const d = new Date(v.fecha);
+        return d >= ini && d <= fin;
+    });
+}
+
+function getLunesDomingo(anyDateStr) {
+    const d = new Date(anyDateStr + 'T12:00:00');
+    const dow = d.getDay(); // 0=Sun..6=Sat
+    const diff = dow === 0 ? -6 : 1 - dow;
+    const lunes = new Date(d); lunes.setDate(d.getDate() + diff);
+    const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
+    return {
+        lunes:   lunes.toISOString().split('T')[0],
+        domingo: domingo.toISOString().split('T')[0],
+    };
+}
+
+function getPrimerUltimoDiaMes(yearMonth) {  // "YYYY-MM"
+    const [y, m] = yearMonth.split('-').map(Number);
+    const primer = `${yearMonth}-01`;
+    const ultimo = new Date(y, m, 0); // día 0 del mes siguiente = último del mes actual
+    const pad = n => String(n).padStart(2, '0');
+    const ultimoStr = `${y}-${pad(m)}-${pad(ultimo.getDate())}`;
+    return { primer, ultimo: ultimoStr };
+}
+
+function switchReportTab(tab) {
+    ['diario', 'semanal', 'mensual'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+        document.getElementById(`panel-${t}`).style.display = t === tab ? '' : 'none';
+    });
+    // Ocultar preview al cambiar tab
+    const prev = document.getElementById('reportPreview');
+    if (prev) prev.style.display = 'none';
+}
+
+// ── Helpers de renderizado de tabla de visitas ────────────────────────────────
+function _renderTablaVisitas(vis) {
+    if (!vis.length) return '<div class="empty"><div class="empty-icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></div><p>No hay registros para este período</p></div>';
+    const total = vis.reduce((s, v) => s + v.total, 0);
+    return `
+    <p style="margin-bottom:14px;font-size:0.84rem;color:var(--ink3);">
+      ${vis.length} paciente(s) | Total: <strong>$${total.toFixed(2)}</strong>
+    </p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Fecha</th><th>Paciente</th><th>Cédula</th><th>Pruebas</th><th>Total</th></tr></thead>
+      <tbody>
+        ${vis.map((v, i) => {
+            const p = DB.pacientes[v.cedula];
+            return `<tr>
+                <td>${i + 1}</td>
+                <td style="white-space:nowrap;">${new Date(v.fecha).toLocaleDateString('es-VE', { day:'2-digit', month:'short' })} ${new Date(v.fecha).toLocaleTimeString('es-VE', { hour:'2-digit', minute:'2-digit' })}</td>
+                <td><strong>${p?.nombre || '—'}</strong></td>
+                <td>${v.cedula}</td>
+                <td>${v.pruebas.map(p => `<div style="font-size:0.78rem;"><span class="badge badge-blue">${p.nombre}</span>${p.resultado ? ` — ${p.resultado}` : ''}</div>`).join('')}</td>
+                <td><strong>$${v.total.toFixed(2)}</strong></td>
+            </tr>`;
+        }).join('')}
+        <tr style="background:var(--blue-xpale);">
+          <td colspan="4"><strong>TOTAL DEL PERÍODO</strong></td>
+          <td>${vis.reduce((s, v) => s + v.pruebas.length, 0)} pruebas</td>
+          <td><strong>$${total.toFixed(2)}</strong></td>
+        </tr>
+      </tbody>
+    </table></div>`;
+}
+
+// ── Semanal ───────────────────────────────────────────────────────────────────
+function verEnPantallaSemanal() {
+    const val = document.getElementById('reportSemana').value;
+    if (!val) { toast('Selecciona una fecha de la semana', 'error'); return; }
+    const { lunes, domingo } = getLunesDomingo(val);
+    const vis = getVisitasRango(lunes, domingo);
+    const prev = document.getElementById('reportPreview');
+    const cont = document.getElementById('reportContent');
+    const title = document.getElementById('reportPreviewTitle');
+    prev.style.display = 'block';
+    if (title) title.textContent = `Vista Previa — Semana del ${fmtFechaLarga(lunes)} al ${fmtFechaLarga(domingo)}`;
+    cont.innerHTML = _renderTablaVisitas(vis);
+}
+
+function verEnPantallaMensual() {
+    const val = document.getElementById('reportMes').value;
+    if (!val) { toast('Selecciona un mes', 'error'); return; }
+    const { primer, ultimo } = getPrimerUltimoDiaMes(val);
+    const vis = getVisitasRango(primer, ultimo);
+    const prev = document.getElementById('reportPreview');
+    const cont = document.getElementById('reportContent');
+    const title = document.getElementById('reportPreviewTitle');
+    prev.style.display = 'block';
+    const [y, m] = val.split('-');
+    const nombreMes = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-VE', { month: 'long', year: 'numeric' });
+    if (title) title.textContent = `Vista Previa — ${nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1)}`;
+    cont.innerHTML = _renderTablaVisitas(vis);
+}
+
+// ── PDF helpers compartidos ───────────────────────────────────────────────────
+function _pdfHeader(doc, W, M, titulo, subtitulo) {
+    doc.setFillColor(21, 101, 192);
+    doc.rect(0, 0, W, 30, 'F');
+    doc.setFillColor(46, 125, 50);
+    doc.rect(0, 27, W, 4, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
+    doc.text('LabClin Ordoñez', M, 13);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+    doc.text('Sistema de Gestión de Laboratorio Clínico', M, 20);
+    doc.text(titulo, W - M, 13, { align: 'right' });
+    doc.text(subtitulo, W - M, 20, { align: 'right' });
+    doc.text(`Generado: ${new Date().toLocaleString('es-VE')}`, W - M, 26, { align: 'right' });
+}
+
+function _pdfSummaryBoxes(doc, W, M, y, boxes) {
+    const bx = (W - M * 2) / boxes.length;
+    boxes.forEach((s, i) => {
+        const bxX = M + i * bx;
+        doc.setFillColor(240, 247, 255); doc.setDrawColor(200, 220, 240);
+        doc.roundedRect(bxX, y, bx - 2, 15, 2, 2, 'FD');
+        doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 100, 130);
+        doc.text(s.label, bxX + (bx - 2) / 2, y + 5.5, { align: 'center' });
+        doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(21, 101, 192);
+        doc.text(s.value, bxX + (bx - 2) / 2, y + 12.5, { align: 'center' });
+    });
+    return y + 22;
+}
+
+function _pdfTableVisitas(doc, vis, W, M, startY) {
+    let y = startY;
+    doc.setFillColor(21, 101, 192);
+    doc.rect(M, y, W - M * 2, 8, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(7.5); doc.setFont('helvetica', 'bold');
+    const cols = [M + 2, M + 8, M + 38, M + 72, M + 118, M + 160];
+    ['#', 'Fecha', 'Paciente', 'Cédula', 'Prueba / Resultado', 'Total'].forEach((h, i) =>
+        doc.text(h, cols[i], y + 5.5)
+    );
+    y += 8;
+
+    vis.forEach((v, idx) => {
+        const pac = DB.pacientes[v.cedula];
+        const rowH = Math.max(9, v.pruebas.length * 7 + 5);
+        if (y + rowH > 278) { doc.addPage(); y = 15; }
+        if (idx % 2 === 0) { doc.setFillColor(245, 250, 255); doc.rect(M, y, W - M * 2, rowH, 'F'); }
+        doc.setTextColor(30, 30, 30); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+        doc.text((idx + 1).toString(), cols[0], y + 6);
+        doc.text(new Date(v.fecha).toLocaleDateString('es-VE', { day:'2-digit', month:'2-digit' }), cols[1], y + 6);
+        doc.setFont('helvetica', 'bold');
+        doc.text(doc.splitTextToSize(pac?.nombre || '—', 30)[0], cols[2], y + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.text(v.cedula, cols[3], y + 6);
+        v.pruebas.forEach((p, pi) => {
+            const py = y + 4 + pi * 7;
+            doc.setFontSize(7); doc.setTextColor(21, 101, 192);
+            doc.text(p.nombre, cols[4], py);
+            if (p.resultado) { doc.setTextColor(60, 60, 60); doc.text('→ ' + doc.splitTextToSize(p.resultado, 38)[0], cols[4] + 1, py + 4); }
+        });
+        doc.setFontSize(8.5); doc.setTextColor(46, 125, 50); doc.setFont('helvetica', 'bold');
+        doc.text('$' + v.total.toFixed(2), cols[5], y + 6);
+        doc.setDrawColor(220, 230, 245);
+        doc.line(M, y + rowH, W - M, y + rowH);
+        y += rowH;
+    });
+
+    // Total fila
+    y += 4;
+    if (y + 12 > 278) { doc.addPage(); y = 15; }
+    const totalGral = vis.reduce((s, v) => s + v.total, 0);
+    doc.setFillColor(232, 245, 232); doc.setDrawColor(165, 214, 167);
+    doc.roundedRect(M, y, W - M * 2, 11, 2, 2, 'FD');
+    doc.setTextColor(27, 94, 32); doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    doc.text('TOTAL RECAUDADO DEL PERÍODO', M + 4, y + 7.5);
+    doc.text('$' + totalGral.toFixed(2), W - M - 3, y + 7.5, { align: 'right' });
+    return y;
+}
+
+function _pdfFooter(doc, W, M) {
+    const pgs = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pgs; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7); doc.setTextColor(150, 150, 150); doc.setFont('helvetica', 'normal');
+        doc.text('LabClin Ordoñez — Sistema de Gestión de Laboratorio Clínico', M, 293);
+        doc.text(`Pág. ${i} de ${pgs}`, W - M, 293, { align: 'right' });
+    }
+}
+
+async function generarPDFSemanal() {
+    const val = document.getElementById('reportSemana').value;
+    if (!val) { toast('Selecciona una fecha de la semana', 'error'); return; }
+    const { lunes, domingo } = getLunesDomingo(val);
+    const vis = getVisitasRango(lunes, domingo);
+    if (!vis.length) { toast('Sin registros para esta semana', 'error'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, M = 14;
+    _pdfHeader(doc, W, M, `Reporte Semanal`, `${fmtFecha(lunes)} — ${fmtFecha(domingo)}`);
+    let y = 40;
+    y = _pdfSummaryBoxes(doc, W, M, y, [
+        { label: 'PACIENTES ATENDIDOS', value: vis.length.toString() },
+        { label: 'PRUEBAS REALIZADAS',  value: vis.reduce((s, v) => s + v.pruebas.length, 0).toString() },
+        { label: 'DÍAS CON ACTIVIDAD',  value: new Set(vis.map(v => v.fecha.slice(0,10))).size.toString() },
+        { label: 'TOTAL RECAUDADO',     value: '$' + vis.reduce((s, v) => s + v.total, 0).toFixed(2) },
+    ]);
+    _pdfTableVisitas(doc, vis, W, M, y);
+    _pdfFooter(doc, W, M);
+    doc.save(`LabClin_Reporte_Semanal_${lunes}.pdf`);
+    toast('PDF semanal generado y descargado', 'success');
+}
+
+async function generarPDFMensual() {
+    const val = document.getElementById('reportMes').value;
+    if (!val) { toast('Selecciona un mes', 'error'); return; }
+    const { primer, ultimo } = getPrimerUltimoDiaMes(val);
+    const vis = getVisitasRango(primer, ultimo);
+    if (!vis.length) { toast('Sin registros para este mes', 'error'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, M = 14;
+    const [y2, m2] = val.split('-');
+    const nombreMes = new Date(Number(y2), Number(m2) - 1, 1).toLocaleDateString('es-VE', { month: 'long', year: 'numeric' });
+    _pdfHeader(doc, W, M, `Reporte Mensual`, nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1));
+    let y = 40;
+    y = _pdfSummaryBoxes(doc, W, M, y, [
+        { label: 'PACIENTES ATENDIDOS', value: vis.length.toString() },
+        { label: 'PRUEBAS REALIZADAS',  value: vis.reduce((s, v) => s + v.pruebas.length, 0).toString() },
+        { label: 'DÍAS CON ACTIVIDAD',  value: new Set(vis.map(v => v.fecha.slice(0,10))).size.toString() },
+        { label: 'TOTAL RECAUDADO',     value: '$' + vis.reduce((s, v) => s + v.total, 0).toFixed(2) },
+    ]);
+    _pdfTableVisitas(doc, vis, W, M, y);
+    _pdfFooter(doc, W, M);
+    doc.save(`LabClin_Reporte_Mensual_${val}.pdf`);
+    toast('PDF mensual generado y descargado', 'success');
+}
+
+// FACTURA DE VISITA INDIVIDUAL
+async function generarFacturaVisita(visitaId) {
+    const visita = DB.visitas.find(v => v.id === visitaId);
+    if (!visita) { toast('Visita no encontrada', 'error'); return; }
+    const pac = DB.pacientes[visita.cedula];
+    if (!pac) { toast('Paciente no encontrado', 'error'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, M = 16;
+    let y = 0;
+
+    // ── Banda de cabecera ──────────────────────────────────────────────────────
+    doc.setFillColor(21, 101, 192);
+    doc.rect(0, 0, W, 34, 'F');
+    doc.setFillColor(46, 125, 50);
+    doc.rect(0, 31, W, 4, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.text('LabClin Ordoñez', M, 14);
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Sistema de Gestión de Laboratorio Clínico', M, 21);
+
+    // Número de factura + fecha (lado derecho del header)
+    const numFactura = 'FC-' + visita.id.slice(-6).toUpperCase();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(numFactura, W - M, 14, { align: 'right' });
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('FACTURA', W - M, 9, { align: 'right' });
+    doc.text(new Date(visita.fecha).toLocaleDateString('es-VE', { day: '2-digit', month: 'long', year: 'numeric' }), W - M, 21, { align: 'right' });
+    doc.text(new Date(visita.fecha).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' }), W - M, 27, { align: 'right' });
+
+    y = 44;
+
+    // ── Datos del paciente ─────────────────────────────────────────────────────
+    doc.setFillColor(240, 247, 255);
+    doc.setDrawColor(200, 220, 245);
+    doc.roundedRect(M, y, W - M * 2, 28, 3, 3, 'FD');
+
+    doc.setTextColor(21, 101, 192);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.text('DATOS DEL PACIENTE', M + 4, y + 6);
+
+    doc.setTextColor(30, 30, 30);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(pac.nombre, M + 4, y + 13);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    const detallesPac = [
+        `Cédula: ${pac.cedula}`,
+        pac.genero ? `Género: ${pac.genero}` : null,
+        pac.nacimiento ? `Nacimiento: ${fmtFecha(pac.nacimiento)}  ·  Edad: ${calcEdad(pac.nacimiento)}` : null,
+        pac.telefono ? `Tel: ${pac.telefono}` : null,
+        pac.direccion ? `Dir: ${pac.direccion}` : null,
+    ].filter(Boolean);
+
+    // Dos columnas de info del paciente
+    const colW = (W - M * 2 - 8) / 2;
+    detallesPac.forEach((txt, i) => {
+        const col = i < Math.ceil(detallesPac.length / 2) ? 0 : 1;
+        const row = col === 0 ? i : i - Math.ceil(detallesPac.length / 2);
+        doc.setTextColor(60, 70, 90);
+        doc.text(txt, M + 4 + col * (colW + 4), y + 20 + row * 5);
+    });
+
+    y += 36;
+
+    // ── Tabla de pruebas ──────────────────────────────────────────────────────
+    // Cabecera de tabla
+    doc.setFillColor(21, 101, 192);
+    doc.rect(M, y, W - M * 2, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    const cN = M + 4;          // col Nro
+    const cPrueba = M + 14;    // col Prueba
+    const cResultado = M + 90; // col Resultado
+    const cPrecio = W - M - 4; // col Precio (right align)
+    doc.text('#', cN, y + 5.5);
+    doc.text('PRUEBA', cPrueba, y + 5.5);
+    doc.text('RESULTADO', cResultado, y + 5.5);
+    doc.text('PRECIO', cPrecio, y + 5.5, { align: 'right' });
+    y += 8;
+
+    visita.pruebas.forEach((p, idx) => {
+        // Wrap texto de resultado
+        const resLines = p.resultado
+            ? doc.splitTextToSize(p.resultado, 58)
+            : ['—'];
+        const rowH = Math.max(8, resLines.length * 4.5 + 5);
+
+        if (y + rowH > 268) { doc.addPage(); y = 16; }
+
+        // Fila alternada
+        if (idx % 2 === 0) {
+            doc.setFillColor(245, 250, 255);
+            doc.rect(M, y, W - M * 2, rowH, 'F');
+        }
+
+        doc.setTextColor(30, 30, 30);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text((idx + 1).toString(), cN, y + 5.5);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(21, 101, 192);
+        const nombreLines = doc.splitTextToSize(p.nombre, 72);
+        doc.text(nombreLines[0], cPrueba, y + 5.5);
+        if (nombreLines[1]) {
+            doc.setFontSize(7);
+            doc.text(nombreLines[1], cPrueba, y + 9.5);
+            doc.setFontSize(8);
+        }
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(60, 60, 60);
+        resLines.forEach((line, li) => {
+            doc.text(line, cResultado, y + 5.5 + li * 4.5);
+        });
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(46, 125, 50);
+        doc.text('$' + p.precio.toFixed(2), cPrecio, y + 5.5, { align: 'right' });
+
+        // Línea separadora
+        doc.setDrawColor(220, 230, 245);
+        doc.line(M, y + rowH, W - M, y + rowH);
+        y += rowH;
+    });
+
+    // ── Fila de total ─────────────────────────────────────────────────────────
+    y += 4;
+    if (y + 14 > 278) { doc.addPage(); y = 16; }
+    doc.setFillColor(232, 245, 232);
+    doc.setDrawColor(165, 214, 167);
+    doc.roundedRect(M, y, W - M * 2, 13, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(27, 94, 32);
+    doc.text('TOTAL A PAGAR', M + 4, y + 8.5);
+    doc.setFontSize(11);
+    doc.text('$' + visita.total.toFixed(2), cPrecio, y + 8.5, { align: 'right' });
+
+    // ── Nota de agradecimiento ────────────────────────────────────────────────
+    y += 20;
+    if (y + 12 > 285) { doc.addPage(); y = 16; }
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(130, 130, 130);
+    doc.text('Gracias por su confianza. LabClin Ordoñez — comprometidos con su salud.', W / 2, y, { align: 'center' });
+
+    // ── Pie de página ──────────────────────────────────────────────────────────
+    const totalPags = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPags; i++) {
+        doc.setPage(i);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(170, 170, 170);
+        doc.text('LabClin Ordoñez — Factura generada el ' + new Date().toLocaleString('es-VE'), M, 293);
+        doc.text(`Pág. ${i} de ${totalPags}`, W - M, 293, { align: 'right' });
+    }
+
+    const nombreArchivo = `Factura_${pac.cedula}_${numFactura}.pdf`;
+    doc.save(nombreArchivo);
+    toast('Factura generada y descargada', 'success');
 }
 
 function verEnPantalla() {
@@ -1359,8 +1792,118 @@ window.cerrarModalMarcarLista = cerrarModalMarcarLista;
 window.mlOnFileChange = mlOnFileChange;
 window.confirmarMarcarLista = confirmarMarcarLista;
 window.moverAlExpediente = moverAlExpediente;
+window.generarFacturaVisita = generarFacturaVisita;
+window.switchReportTab = switchReportTab;
+window.verEnPantallaSemanal = verEnPantallaSemanal;
+window.verEnPantallaMensual = verEnPantallaMensual;
+window.generarPDFSemanal = generarPDFSemanal;
+window.generarPDFMensual = generarPDFMensual;
 
-// INIT
-initLogin();
-initPruebasAdmin();
-actualizarBadgeEnCurso();
+// ── INIT (Firebase) ───────────────────────────────────────────────────────────
+async function initApp() {
+    const overlay = document.getElementById('loadingOverlay');
+    const loadingMsg = document.getElementById('loadingMsg');
+
+    try {
+        if (loadingMsg) loadingMsg.textContent = 'Cargando catálogo de pruebas…';
+        const catSnap = await db.collection('catalogo').get();
+        if (catSnap.empty) {
+            if (loadingMsg) loadingMsg.textContent = 'Configurando catálogo inicial…';
+            const b = db.batch();
+            DEFAULT_CATALOG.forEach(item => b.set(db.collection('catalogo').doc(item.id), item));
+            await b.commit();
+            CATALOG = DEFAULT_CATALOG.map(item => ({ ...item }));
+        } else {
+            CATALOG = [];
+            catSnap.forEach(doc => CATALOG.push(doc.data()));
+        }
+
+        if (loadingMsg) loadingMsg.textContent = 'Cargando datos de pacientes…';
+        const [pacSnap, visSnap, pendSnap] = await Promise.all([
+            db.collection('pacientes').get(),
+            db.collection('visitas').get(),
+            db.collection('visitasPendientes').get(),
+        ]);
+
+        DB.pacientes = {};
+        pacSnap.forEach(doc => { DB.pacientes[doc.id] = doc.data(); });
+        DB.visitas = [];
+        visSnap.forEach(doc => DB.visitas.push(doc.data()));
+        DB.visitasPendientes = [];
+        pendSnap.forEach(doc => DB.visitasPendientes.push(doc.data()));
+
+        // Migrar datos de localStorage si Firestore está vacío
+        if (pacSnap.empty) await migrarDesdeLocalStorage();
+
+    } catch (err) {
+        console.error('Firebase error:', err);
+        if (loadingMsg) {
+            loadingMsg.innerHTML =
+                `<span style="color:#fca5a5;">❌ Error al conectar con Firebase.<br><small>${err.message}</small></span>`;
+        }
+        return; // Mantener overlay visible
+    }
+
+    if (overlay) overlay.style.display = 'none';
+    initLogin();
+    initPruebasAdmin();
+    actualizarBadgeEnCurso();
+}
+
+async function migrarDesdeLocalStorage() {
+    try {
+        const rawDB  = localStorage.getItem('lc_db_v2');
+        const rawCat = localStorage.getItem('lc_catalog_v1');
+        if (!rawDB && !rawCat) return;
+
+        let localDB = null;
+        try { localDB = rawDB ? JSON.parse(rawDB) : null; } catch (e) {}
+
+        const pacientes  = localDB ? Object.values(localDB.pacientes || {}) : [];
+        const visitas    = localDB ? (localDB.visitas || []) : [];
+        const pendientes = localDB ? (localDB.visitasPendientes || []) : [];
+
+        if (pacientes.length === 0 && visitas.length === 0 && !rawCat) return;
+
+        if (pacientes.length > 0 || visitas.length > 0) {
+            toast('Migrando datos locales a Firebase…', 'info');
+            const allOps = [];
+            pacientes.forEach(p  => allOps.push({ col: 'pacientes',         id: p.cedula, data: p }));
+            visitas.forEach(v    => allOps.push({ col: 'visitas',            id: v.id,     data: v }));
+            pendientes.forEach(v => allOps.push({ col: 'visitasPendientes',  id: v.id,     data: v }));
+
+            for (let i = 0; i < allOps.length; i += 400) {
+                const chunk = allOps.slice(i, i + 400);
+                const b = db.batch();
+                chunk.forEach(op => b.set(db.collection(op.col).doc(op.id), op.data));
+                await b.commit();
+            }
+            DB.pacientes = localDB.pacientes || {};
+            DB.visitas = visitas;
+            DB.visitasPendientes = pendientes;
+            toast(`✓ Migración completada: ${pacientes.length} pacientes, ${visitas.length} visitas`, 'success');
+        }
+
+        // Migrar catálogo personalizado si existe y difiere del default
+        if (rawCat) {
+            let localCat = null;
+            try { localCat = JSON.parse(rawCat); } catch (e) {}
+            if (Array.isArray(localCat) && localCat.length > 0) {
+                const normalized = localCat.map(normalizeCatalogItem).filter(Boolean);
+                const isCustom = normalized.length !== DEFAULT_CATALOG.length ||
+                    normalized.some(c => !DEFAULT_CATALOG.find(d => d.id === c.id));
+                if (isCustom) {
+                    const b = db.batch();
+                    CATALOG.forEach(item => b.delete(db.collection('catalogo').doc(item.id)));
+                    normalized.forEach(item => b.set(db.collection('catalogo').doc(item.id), item));
+                    await b.commit();
+                    CATALOG = normalized;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Error en migración desde localStorage:', e);
+    }
+}
+
+initApp();
