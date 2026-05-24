@@ -67,28 +67,40 @@ const ConfiguracionPage = (() => {
             </button>
           </div>
 
-          <!-- WhatsApp Config -->
+          <!-- Email Config -->
           <div class="card">
             <div class="card-header">
-              <div class="card-title">Integración WhatsApp</div>
+              <div class="card-title">Notificaciones por Correo Electrónico</div>
               <span class="badge badge-neutral"><span class="badge-dot"></span>No Configurado</span>
             </div>
             <p style="font-size: var(--font-size-sm); color: var(--color-surface-500); margin-bottom: var(--spacing-lg);">
-              Configure la API de WhatsApp Business para envío automático de resultados.
+              Configure el servicio de correo electrónico para el envío automático de notificaciones de resultados a los pacientes.
             </p>
-            <div class="form-group" style="margin-bottom: var(--spacing-base);">
-              <label class="form-label">API Token</label>
-              <input type="password" placeholder="Token de WhatsApp Business API" />
+            <div class="form-row" style="margin-bottom: var(--spacing-base);">
+              <div class="form-group">
+                <label class="form-label">Servidor SMTP</label>
+                <input type="text" placeholder="smtp.gmail.com" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Puerto</label>
+                <input type="number" placeholder="587" />
+              </div>
             </div>
-            <div class="form-group" style="margin-bottom: var(--spacing-base);">
-              <label class="form-label">Phone Number ID</label>
-              <input type="text" placeholder="ID del número de teléfono" />
+            <div class="form-row" style="margin-bottom: var(--spacing-base);">
+              <div class="form-group">
+                <label class="form-label">Correo del Laboratorio</label>
+                <input type="email" placeholder="resultados@labclinica.com" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contraseña / App Password</label>
+                <input type="password" placeholder="Contraseña de la cuenta" />
+              </div>
             </div>
             <div class="form-group" style="margin-bottom: var(--spacing-lg);">
-              <label class="form-label">Template Name</label>
-              <input type="text" placeholder="resultado_laboratorio" />
+              <label class="form-label">Nombre del Remitente</label>
+              <input type="text" placeholder="Laboratorio Clínico LabClínica" />
             </div>
-            <button class="btn btn-primary" onclick="Toast.info('Integración WhatsApp próximamente')">
+            <button class="btn btn-primary" onclick="Toast.info('Configuración de correo próximamente')">
               Guardar Configuración
             </button>
           </div>
@@ -103,9 +115,9 @@ const ConfiguracionPage = (() => {
                 <span class="form-hint">Sesión se cerrará automáticamente tras este periodo</span>
               </div>
               <div class="form-group">
-                <label class="form-label">Expiración de enlaces WhatsApp (horas)</label>
-                <input type="number" value="24" min="1" max="72" />
-                <span class="form-hint">Los enlaces de resultados expirarán tras este periodo</span>
+                <label class="form-label">Copia de notificación por email</label>
+                <input type="email" placeholder="admin@labclinica.com" />
+                <span class="form-hint">Enviar copia de cada notificación a este correo (opcional)</span>
               </div>
             </div>
             <button class="btn btn-primary" onclick="Toast.success('Configuración de seguridad guardada')">

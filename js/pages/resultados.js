@@ -57,7 +57,7 @@ const ResultadosPage = (() => {
                   <th>Pruebas (Resumen)</th>
                   <th>Estado</th>
                   <th>Fecha</th>
-                  <th>WhatsApp</th>
+                  <th>Email</th>
                   <th style="text-align: center;">Acciones</th>
                 </tr>
               </thead>
@@ -108,7 +108,7 @@ const ResultadosPage = (() => {
           <td>${getEstadoResultadoBadge(order.estado)}</td>
           <td style="color: var(--color-surface-500);">${formatDate(order.fecha)}</td>
           <td style="text-align: center;">
-            ${order.whatsappEnviado
+            ${order.emailEnviado
               ? `<span class="badge badge-success" style="font-size: 10px;"><span class="badge-dot"></span>Enviado</span>`
               : `<span class="badge badge-neutral" style="font-size: 10px;"><span class="badge-dot"></span>Pendiente</span>`
             }
@@ -126,8 +126,8 @@ const ResultadosPage = (() => {
                 </button>
               ` : ''}
               ${order.estado === 'Completado' ? `
-                <button class="btn btn-ghost btn-icon" onclick="ResultadosPage.sendWhatsApp('${order.id}')" title="Enviar por WhatsApp al paciente" style="color: var(--color-success);">
-                  ${Icons.messageCircle()}
+                <button class="btn btn-ghost btn-icon" onclick="ResultadosPage.sendEmail('${order.id}')" title="Enviar por correo al paciente" style="color: var(--color-success);">
+                  ${Icons.mail()}
                 </button>
               ` : ''}
               ${order.estado === 'Completado' || order.estado === 'Entregado' ? `
@@ -213,16 +213,43 @@ const ResultadosPage = (() => {
     refresh();
   }
 
-  function sendWhatsApp(orderId) {
+  function sendEmail(orderId) {
     const order = DemoData.getOrderById(orderId);
     if (!order) return;
-    
-    // Simulate WhatsApp send
-    DemoData.updateOrderStatus(orderId, 'Entregado', { whatsappEnviado: true });
-    // Keep it explicitly in order object or just use updateOrderStatus
-    order.whatsappEnviado = true; 
-    
-    Toast.success(`Resultados de la orden ${orderId} enviados exitosamente al WhatsApp del paciente.`);
+
+    // Buscar email del paciente
+    const patient = DemoData.getPatientById(order.pacienteId);
+    if (!patient || !patient.email) {
+      Toast.error('El paciente no tiene correo electrónico registrado.');
+      return;
+    }
+
+    // Armar pruebas
+    const allPruebas = DemoData.getPruebas();
+    const testNames = order.pruebas.map(id => {
+      const p = allPruebas.find(pr => pr.id === id);
+      return p ? p.nombre : id;
+    }).join(', ');
+
+    const subject = encodeURIComponent(`Resultados Listos — Orden ${order.id} | LabClínica`);
+    const body = encodeURIComponent(
+      `Estimado(a) ${patient.nombres} ${patient.apellidos},\n\n` +
+      `Le informamos que los resultados de su orden ${order.id} ya están listos.\n\n` +
+      `Pruebas realizadas: ${testNames}\n` +
+      `Fecha de la orden: ${order.fecha}\n\n` +
+      `Puede pasar a retirar sus resultados en el horario de atención del laboratorio, ` +
+      `o solicitar que se los envíen como documento adjunto respondiendo a este correo.\n\n` +
+      `Atentamente,\nLaboratorio Clínico LabClínica`
+    );
+
+    // Abrir cliente de correo
+    window.open(`mailto:${patient.email}?subject=${subject}&body=${body}`, '_blank');
+
+    // Marcar como enviado
+    DemoData.updateOrderStatus(orderId, 'Entregado', { emailEnviado: true });
+    order.emailEnviado = true;
+
+    Toast.success(`Se abrió el correo para ${patient.email}. Orden marcada como Entregado.`);
     refresh();
   }
 
@@ -231,5 +258,5 @@ const ResultadosPage = (() => {
     setTimeout(() => Toast.success('Datos actualizados correctamente'), 50);
   }
 
-  return { render, filterResults, openRegisterModal, saveResult, sendWhatsApp, refresh };
+  return { render, filterResults, openRegisterModal, saveResult, sendEmail, refresh };
 })();

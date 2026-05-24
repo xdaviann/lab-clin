@@ -40,13 +40,13 @@ const DemoData = (() => {
   ];
 
   const DEFAULT_RESULTS = [
-    { id: 'RES-001', ordenId: 'ORD-001', paciente: 'María González', prueba: 'Hematología Completa', estado: 'Entregado', fechaRegistro: '2026-05-01', whatsappEnviado: true, valores: 'Hemoglobina: 13.5 g/dL\nHematocrito: 40%\nGlóbulos Blancos: 7,200/µL\nPlaquetas: 250,000/µL', observaciones: 'Valores dentro de rango normal.' },
-    { id: 'RES-002', ordenId: 'ORD-001', paciente: 'María González', prueba: 'Glicemia', estado: 'Entregado', fechaRegistro: '2026-05-01', whatsappEnviado: true, valores: 'Glicemia en ayunas: 92 mg/dL', observaciones: 'Dentro del rango normal (70-100 mg/dL).' },
-    { id: 'RES-003', ordenId: 'ORD-002', paciente: 'Carlos Rodríguez', prueba: 'Hematología Completa', estado: 'En Proceso', fechaRegistro: '2026-05-06', whatsappEnviado: false, valores: '', observaciones: '' },
-    { id: 'RES-004', ordenId: 'ORD-003', paciente: 'Luis Hernández', prueba: 'TSH', estado: 'En Proceso', fechaRegistro: '2026-05-07', whatsappEnviado: false, valores: '', observaciones: '' },
-    { id: 'RES-005', ordenId: 'ORD-004', paciente: 'Ana Martínez', prueba: 'HIV (Prueba Rápida)', estado: 'Completado', fechaRegistro: '2026-05-05', whatsappEnviado: false, valores: 'Resultado: No Reactivo', observaciones: 'Muestra procesada según protocolo estándar.' },
-    { id: 'RES-006', ordenId: 'ORD-005', paciente: 'Gabriela Torres', prueba: 'Hematología Completa', estado: 'Entregado', fechaRegistro: '2026-05-03', whatsappEnviado: true, valores: 'Hemoglobina: 12.8 g/dL\nHematocrito: 38%\nGlóbulos Blancos: 6,800/µL\nPlaquetas: 280,000/µL', observaciones: 'Valores normales.' },
-    { id: 'RES-007', ordenId: 'ORD-006', paciente: 'Valentina Ramírez', prueba: 'Perfil Lipídico', estado: 'En Proceso', fechaRegistro: '2026-05-08', whatsappEnviado: false, valores: '', observaciones: '' },
+    { id: 'RES-001', ordenId: 'ORD-001', paciente: 'María González', prueba: 'Hematología Completa', estado: 'Entregado', fechaRegistro: '2026-05-01', emailEnviado: true, valores: 'Hemoglobina: 13.5 g/dL\nHematocrito: 40%\nGlóbulos Blancos: 7,200/µL\nPlaquetas: 250,000/µL', observaciones: 'Valores dentro de rango normal.' },
+    { id: 'RES-002', ordenId: 'ORD-001', paciente: 'María González', prueba: 'Glicemia', estado: 'Entregado', fechaRegistro: '2026-05-01', emailEnviado: true, valores: 'Glicemia en ayunas: 92 mg/dL', observaciones: 'Dentro del rango normal (70-100 mg/dL).' },
+    { id: 'RES-003', ordenId: 'ORD-002', paciente: 'Carlos Rodríguez', prueba: 'Hematología Completa', estado: 'En Proceso', fechaRegistro: '2026-05-06', emailEnviado: false, valores: '', observaciones: '' },
+    { id: 'RES-004', ordenId: 'ORD-003', paciente: 'Luis Hernández', prueba: 'TSH', estado: 'En Proceso', fechaRegistro: '2026-05-07', emailEnviado: false, valores: '', observaciones: '' },
+    { id: 'RES-005', ordenId: 'ORD-004', paciente: 'Ana Martínez', prueba: 'HIV (Prueba Rápida)', estado: 'Completado', fechaRegistro: '2026-05-05', emailEnviado: false, valores: 'Resultado: No Reactivo', observaciones: 'Muestra procesada según protocolo estándar.' },
+    { id: 'RES-006', ordenId: 'ORD-005', paciente: 'Gabriela Torres', prueba: 'Hematología Completa', estado: 'Entregado', fechaRegistro: '2026-05-03', emailEnviado: true, valores: 'Hemoglobina: 12.8 g/dL\nHematocrito: 38%\nGlóbulos Blancos: 6,800/µL\nPlaquetas: 280,000/µL', observaciones: 'Valores normales.' },
+    { id: 'RES-007', ordenId: 'ORD-006', paciente: 'Valentina Ramírez', prueba: 'Perfil Lipídico', estado: 'En Proceso', fechaRegistro: '2026-05-08', emailEnviado: false, valores: '', observaciones: '' },
   ];
 
   const DEFAULT_INVOICES = [
@@ -195,6 +195,19 @@ const DemoData = (() => {
     return patients[index];
   }
 
+  function deletePatient(id) {
+    const index = patients.findIndex(p => p.id === id);
+    if (index === -1) return false;
+    
+    // Eliminar también las órdenes asociadas al paciente
+    const patientOrders = orders.filter(o => o.pacienteId === id).map(o => o.id);
+    patientOrders.forEach(orderId => deleteOrder(orderId));
+    
+    patients.splice(index, 1);
+    saveData();
+    return true;
+  }
+
   function searchPatients(query) {
     const lowerQuery = query.toLowerCase();
     return patients.filter(patient =>
@@ -247,6 +260,7 @@ const DemoData = (() => {
     if (idx === -1) return null;
     orders[idx].estado = newStatus;
     if (extraData.resultadoNota !== undefined) orders[idx].resultadoNota = extraData.resultadoNota;
+    if (extraData.emailEnviado !== undefined) orders[idx].emailEnviado = extraData.emailEnviado;
     saveData();
     return orders[idx];
   }
@@ -402,7 +416,7 @@ const DemoData = (() => {
   }
 
   function deliverResult(id) {
-    return updateResult(id, { estado: 'Entregado', whatsappEnviado: true });
+    return updateResult(id, { estado: 'Entregado', emailEnviado: true });
   }
 
   /* ── Invoices & Payments ── */
@@ -479,6 +493,35 @@ const DemoData = (() => {
       else rangos['60+']++;
     });
     const rangosEdad = Object.entries(rangos).map(([rango, cantidad]) => ({ rango, cantidad }));
+    /* Ingresos de los últimos 5 meses */
+    const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const ingresosPorMes = [];
+    for (let i = 4; i >= 0; i--) {
+      let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      let y = d.getFullYear();
+      let m = d.getMonth();
+      let monthStr = `${y}-${String(m + 1).padStart(2, '0')}`;
+      let monto = invoices
+        .filter(inv => inv.fecha && inv.fecha.startsWith(monthStr))
+        .reduce((sum, inv) => sum + inv.pagado, 0);
+      ingresosPorMes.push({ mes: nombresMeses[m], monto: monto });
+    }
+
+    /* Afluencia Semanal (Lunes a Sábado) */
+    const nombresDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const afluenciaMap = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+    orders.forEach(o => {
+      if (!o.fecha) return;
+      const d = new Date(o.fecha + 'T12:00:00');
+      const day = d.getDay();
+      if (day >= 1 && day <= 6) {
+        afluenciaMap[day]++;
+      }
+    });
+    const diasMayorAfluencia = [1, 2, 3, 4, 5, 6].map(d => ({
+      dia: nombresDias[d],
+      pacientes: afluenciaMap[d]
+    }));
 
     return {
       totalPacientes: patients.length,
@@ -488,21 +531,8 @@ const DemoData = (() => {
       pruebasMasDemandadas,
       distribucionGenero: { masculino, femenino },
       rangosEdad,
-      ingresosPorMes: [
-        { mes: 'Ene', monto: 420 },
-        { mes: 'Feb', monto: 380 },
-        { mes: 'Mar', monto: 510 },
-        { mes: 'Abr', monto: 465 },
-        { mes: 'May', monto: Math.round(ingresosMes) },
-      ],
-      diasMayorAfluencia: [
-        { dia: 'Lunes', pacientes: 18 },
-        { dia: 'Martes', pacientes: 22 },
-        { dia: 'Miércoles', pacientes: 15 },
-        { dia: 'Jueves', pacientes: 20 },
-        { dia: 'Viernes', pacientes: 25 },
-        { dia: 'Sábado', pacientes: 12 },
-      ],
+      ingresosPorMes,
+      diasMayorAfluencia,
     };
   }
 
@@ -515,6 +545,6 @@ const DemoData = (() => {
     getCategorias, addCategoria, deleteCategoria, updateCategoria,
     getPayments, getPaymentsByInvoice, addPayment,
     getDashboardStats,
-    addPatient, updatePatient, addOrder, updateOrder, deleteOrder,
+    addPatient, updatePatient, deletePatient, addOrder, updateOrder, deleteOrder,
   };
 })();

@@ -11,10 +11,7 @@ const TopBar = (() => {
     return `
       <header class="topbar" id="topbar">
         <div class="topbar-left">
-          <div class="topbar-search">
-            <span class="search-icon">${Icons.search()}</span>
-            <input type="text" placeholder="Buscar pacientes, órdenes..." id="global-search" autocomplete="off" />
-          </div>
+          <!-- Búsqueda global removida a petición del usuario -->
         </div>
         <div class="topbar-right">
           <span style="font-size: var(--font-size-xs); color: var(--color-surface-400); text-transform: capitalize;">${dateStr}</span>

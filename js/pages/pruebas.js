@@ -31,13 +31,15 @@ const PruebasPage = (() => {
 
         <!-- Summary Cards -->
         <div class="grid-stats stagger-children" style="margin-bottom: var(--spacing-xl);">
-          ${categorias.slice(0, 4).map((cat, i) => {
+          ${categorias.map((cat, i) => {
             const count = pruebas.filter(p => p.categoria === cat).length;
             const variants = ['primary', 'success', 'info', 'warning'];
             const icons = [Icons.flask(), Icons.activity(), Icons.clipboard(), Icons.fileText()];
+            const variant = variants[i % variants.length];
+            const icon = icons[i % icons.length];
             return `
-              <div class="stat-card stat-${variants[i]}">
-                <div class="stat-icon icon-${variants[i]}">${icons[i]}</div>
+              <div class="stat-card stat-${variant}">
+                <div class="stat-icon icon-${variant}">${icon}</div>
                 <div class="stat-content">
                   <div class="stat-label">${cat}</div>
                   <div class="stat-value">${count}</div>
@@ -58,7 +60,6 @@ const PruebasPage = (() => {
               <option value="">Todas las categorías</option>
               ${categorias.map(c => `<option value="${c}">${c}</option>`).join('')}
             </select>
-            ${CurrencyService.renderCurrencyWidget()}
           </div>
         </div>
 

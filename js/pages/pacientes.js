@@ -114,6 +114,9 @@ const PacientesPage = (() => {
             <button class="btn btn-ghost btn-icon" onclick="PacientesPage.openEditPatientModal('${patient.id}')" title="Editar">
               ${Icons.edit()}
             </button>
+            <button class="btn btn-ghost btn-icon" onclick="PacientesPage.confirmDeletePatient('${patient.id}')" title="Eliminar" style="color: var(--color-danger);">
+              ${Icons.trash()}
+            </button>
           </div>
         </td>
       </tr>
@@ -308,8 +311,8 @@ const PacientesPage = (() => {
           </div>
           <div class="form-row" style="margin-top: var(--spacing-base);">
             <div class="form-group">
-              <label class="form-label">Correo Electrónico</label>
-              <input type="email" id="np-email" placeholder="paciente@email.com" />
+              <label class="form-label">Correo Electrónico <span class="required">*</span></label>
+              <input type="email" id="np-email" placeholder="paciente@email.com" required />
             </div>
             <div class="form-group">
               <label class="form-label">Contacto de Emergencia</label>
@@ -344,8 +347,22 @@ const PacientesPage = (() => {
       direccion: document.getElementById('np-direccion')?.value?.trim(),
     };
 
-    if (!patientData.nombres || !patientData.apellidos || !patientData.identificacion || !patientData.genero || !patientData.telefono) {
-      Toast.error('Complete todos los campos obligatorios');
+    if (!patientData.nombres || !patientData.apellidos || !patientData.identificacion || !patientData.genero || !patientData.telefono || !patientData.email) {
+      Toast.error('Complete todos los campos obligatorios (incluyendo correo electrónico)');
+      return;
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(patientData.email)) {
+      Toast.error('Ingrese un correo electrónico válido');
+      return;
+    }
+
+    // Validar cédula duplicada
+    const exists = DemoData.getPatients().some(p => p.identificacion.toLowerCase() === patientData.identificacion.toLowerCase());
+    if (exists) {
+      Toast.error(`Ya existe un paciente registrado con la cédula/identificación ${patientData.identificacion}`);
       return;
     }
 
@@ -402,8 +419,8 @@ const PacientesPage = (() => {
           </div>
           <div class="form-row" style="margin-top: var(--spacing-base);">
             <div class="form-group">
-              <label class="form-label">Correo Electrónico</label>
-              <input type="email" id="ep-email" value="${patient.email || ''}" />
+              <label class="form-label">Correo Electrónico <span class="required">*</span></label>
+              <input type="email" id="ep-email" value="${patient.email || ''}" required />
             </div>
             <div class="form-group">
               <label class="form-label">Contacto de Emergencia</label>
@@ -438,8 +455,21 @@ const PacientesPage = (() => {
       contactoEmergencia: document.getElementById('ep-contactoEmergencia')?.value?.trim(),
     };
 
-    if (!updates.nombres || !updates.apellidos || !updates.identificacion || !updates.fechaNacimiento || !updates.genero || !updates.telefono) {
-      Toast.error('Complete todos los campos obligatorios');
+    if (!updates.nombres || !updates.apellidos || !updates.identificacion || !updates.fechaNacimiento || !updates.genero || !updates.telefono || !updates.email) {
+      Toast.error('Complete todos los campos obligatorios (incluyendo correo electrónico)');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(updates.email)) {
+      Toast.error('Ingrese un correo electrónico válido');
+      return;
+    }
+
+    // Validar cédula duplicada (excluyendo al paciente actual)
+    const exists = DemoData.getPatients().some(p => p.identificacion.toLowerCase() === updates.identificacion.toLowerCase() && p.id !== patientId);
+    if (exists) {
+      Toast.error(`Ya existe otro paciente registrado con la cédula/identificación ${updates.identificacion}`);
       return;
     }
 
@@ -451,10 +481,28 @@ const PacientesPage = (() => {
     Router.navigate('/pacientes/' + patientId);
   }
 
+  function confirmDeletePatient(patientId) {
+    const patient = DemoData.getPatientById(patientId);
+    if (!patient) return;
+    
+    if (confirm(`¿Está seguro que desea eliminar al paciente ${patient.nombres} ${patient.apellidos}?\n\nEsta acción también eliminará todas sus órdenes y resultados, y no se puede deshacer.`)) {
+      if (DemoData.deletePatient(patientId)) {
+        Toast.success('Paciente eliminado exitosamente');
+        refresh();
+        // Si estamos en la vista de detalle de este paciente, volver a la lista
+        if (window.location.hash.includes(`/pacientes/${patientId}`)) {
+          Router.navigate('/pacientes');
+        }
+      } else {
+        Toast.error('No se pudo eliminar al paciente');
+      }
+    }
+  }
+
   function refresh() {
     window.dispatchEvent(new Event('hashchange'));
     setTimeout(() => Toast.success('Datos actualizados correctamente'), 50);
   }
 
-  return { render, filterPatients, openNewPatientModal, saveNewPatient, openEditPatientModal, saveEditPatient, refresh };
+  return { render, filterPatients, openNewPatientModal, saveNewPatient, openEditPatientModal, saveEditPatient, confirmDeletePatient, refresh };
 })();

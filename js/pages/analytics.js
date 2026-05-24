@@ -1,202 +1,243 @@
 /* ============================================================
-   PAGE: ANALYTICS BI — Dashboard analítico
-   RF-BI-001 a RF-BI-006
+   PAGE: ANALYTICS BI — Dashboard analítico (Chart.js Edition)
    ============================================================ */
 
 const AnalyticsPage = (() => {
+  let charts = {};
+
   function render() {
     const stats = DemoData.getDashboardStats();
 
+    // Render KPIs
+    const renderKPI = (title, value, subtitle, icon, gradient) => `
+      <div class="card" style="position: relative; overflow: hidden; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; min-height: 140px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div style="position: absolute; top: -10px; right: -10px; opacity: 0.1; width: 100px; height: 100px; background: ${gradient}; border-radius: 50%; filter: blur(20px);"></div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div style="font-size: 0.85rem; font-weight: 600; color: var(--color-surface-500); text-transform: uppercase; letter-spacing: 0.5px;">${title}</div>
+          <div style="padding: 8px; border-radius: 12px; background: ${gradient}; color: white; display: flex; align-items: center; justify-content: center;">
+            ${icon}
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 2.5rem; font-weight: 800; color: var(--color-surface-900); letter-spacing: -1px; line-height: 1.2;">${value}</div>
+          <div style="font-size: 0.85rem; color: var(--color-surface-500); font-weight: 500;">${subtitle}</div>
+        </div>
+      </div>
+    `;
+
+    // Initialize charts after DOM injection
+    setTimeout(() => initCharts(stats), 50);
+
     return `
+      <style>
+        .chart-container { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+        .chart-title { font-size: 1.1rem; font-weight: 700; color: var(--color-surface-800); margin-bottom: 4px; }
+        .chart-subtitle { font-size: 0.85rem; color: var(--color-surface-500); margin-bottom: 20px; }
+      </style>
+
       ${TopBar.render('Analytics BI')}
-      <main class="content" id="page-content">
-        <div class="page-header">
+      <main class="content" id="page-content" style="background: var(--color-surface-50);">
+        <div class="page-header" style="margin-bottom: 32px;">
           <div>
-            <h1 class="page-title">Dashboard Analítico</h1>
-            <p class="page-subtitle">Indicadores y métricas del laboratorio</p>
+            <h1 class="page-title" style="font-size: 2rem; font-weight: 800; letter-spacing: -0.5px;">Dashboard Analítico</h1>
+            <p class="page-subtitle" style="font-size: 1rem; color: var(--color-surface-500);">Indicadores de rendimiento (impulsado por Chart.js)</p>
           </div>
           <div class="page-actions">
-            <button class="btn btn-secondary btn-sm" onclick="Toast.info('Actualización en tiempo real próximamente')">
-              ${Icons.refreshCw()} Actualizar
+            <button class="btn btn-primary" onclick="AnalyticsPage.refresh()" style="border-radius: 50px; padding: 10px 24px; font-weight: 600; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);">
+              ${Icons.refreshCw()} Actualizar Datos
             </button>
           </div>
         </div>
 
-        <!-- KPI Row -->
-        <div class="grid-stats stagger-children" style="margin-bottom: var(--spacing-xl);">
-          <div class="stat-card stat-primary">
-            <div class="stat-icon icon-primary">${Icons.users()}</div>
-            <div class="stat-content">
-              <div class="stat-label">Total Pacientes</div>
-              <div class="stat-value">${stats.totalPacientes}</div>
-            </div>
-          </div>
-          <div class="stat-card stat-success">
-            <div class="stat-icon icon-success">${Icons.activity()}</div>
-            <div class="stat-content">
-              <div class="stat-label">Pruebas del Mes</div>
-              <div class="stat-value">165</div>
-            </div>
-          </div>
-          <div class="stat-card stat-info">
-            <div class="stat-icon icon-info">${Icons.dollarSign()}</div>
-            <div class="stat-content">
-              <div class="stat-label">Ingresos del Mes</div>
-              <div class="stat-value">$${stats.ingresosMes.toFixed(2)}</div>
-            </div>
+        <!-- KPIs Row -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 32px;">
+          ${renderKPI('Pacientes Totales', stats.totalPacientes, 'Registrados en el sistema', Icons.users(), 'linear-gradient(135deg, #3b82f6, #2563eb)')}
+          ${renderKPI('Órdenes Hoy', stats.ordenesHoy, 'Visitas del día actual', Icons.activity(), 'linear-gradient(135deg, #10b981, #059669)')}
+          ${renderKPI('Ingresos del Mes', `$${stats.ingresosMes.toFixed(0)}`, 'Recaudación actual', Icons.dollarSign(), 'linear-gradient(135deg, #f59e0b, #d97706)')}
+          ${renderKPI('Resultados Pdtes.', stats.resultadosPendientes, 'Por entregar o validar', Icons.clipboard(), 'linear-gradient(135deg, #ef4444, #dc2626)')}
+        </div>
+
+        <!-- Main Trend Chart -->
+        <div class="chart-container" style="margin-bottom: 32px;">
+          <div class="chart-title">Tendencia de Ingresos Mensuales</div>
+          <div class="chart-subtitle">Análisis financiero de los últimos 5 meses</div>
+          <div style="height: 300px; width: 100%;">
+            <canvas id="ingresosChart"></canvas>
           </div>
         </div>
 
-        <!-- Charts Grid -->
-        <div class="grid-2col" style="margin-bottom: var(--spacing-xl);">
-          <!-- Gender Distribution (Pie Chart simulation) -->
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <div class="card-title">Distribución por Género</div>
-                <div class="card-subtitle">Pacientes registrados</div>
-              </div>
-            </div>
-            <div style="display: flex; align-items: center; gap: var(--spacing-xl); padding: var(--spacing-base) 0;">
-              <!-- Donut Chart -->
-              <div style="position: relative; width: 160px; height: 160px; flex-shrink: 0;">
-                <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
-                  <circle cx="18" cy="18" r="14" fill="none" stroke="var(--color-surface-100)" stroke-width="3.5"></circle>
-                  <circle cx="18" cy="18" r="14" fill="none" stroke="var(--color-primary-500)" stroke-width="3.5"
-                    stroke-dasharray="${(stats.distribucionGenero.masculino / stats.totalPacientes * 100).toFixed(1)} ${100 - (stats.distribucionGenero.masculino / stats.totalPacientes * 100)}"
-                    stroke-dashoffset="0"
-                    style="transition: stroke-dasharray 1s ease;">
-                  </circle>
-                  <circle cx="18" cy="18" r="14" fill="none" stroke="var(--color-secondary-400)" stroke-width="3.5"
-                    stroke-dasharray="${(stats.distribucionGenero.femenino / stats.totalPacientes * 100).toFixed(1)} ${100 - (stats.distribucionGenero.femenino / stats.totalPacientes * 100)}"
-                    stroke-dashoffset="-${(stats.distribucionGenero.masculino / stats.totalPacientes * 100).toFixed(1)}"
-                    style="transition: stroke-dasharray 1s ease;">
-                  </circle>
-                </svg>
-                <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                  <div style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); color: var(--color-surface-800);">${stats.totalPacientes}</div>
-                  <div style="font-size: var(--font-size-xs); color: var(--color-surface-500);">Total</div>
-                </div>
-              </div>
-              <!-- Legend -->
-              <div style="display: flex; flex-direction: column; gap: var(--spacing-base);">
-                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-                  <div style="width: 12px; height: 12px; border-radius: var(--radius-full); background: var(--color-primary-500);"></div>
-                  <div>
-                    <div style="font-size: var(--font-size-sm); font-weight: var(--font-weight-medium);">Masculino</div>
-                    <div style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); color: var(--color-primary-600);">${stats.distribucionGenero.masculino}</div>
-                  </div>
-                </div>
-                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
-                  <div style="width: 12px; height: 12px; border-radius: var(--radius-full); background: var(--color-secondary-400);"></div>
-                  <div>
-                    <div style="font-size: var(--font-size-sm); font-weight: var(--font-weight-medium);">Femenino</div>
-                    <div style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); color: var(--color-secondary-500);">${stats.distribucionGenero.femenino}</div>
-                  </div>
-                </div>
-              </div>
+        <!-- Lower Grid (3 columns) -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 32px;">
+          
+          <!-- Gender Donut Chart -->
+          <div class="chart-container">
+            <div class="chart-title">Distribución por Género</div>
+            <div class="chart-subtitle">Proporción de pacientes</div>
+            <div style="height: 250px; width: 100%; display: flex; justify-content: center;">
+              <canvas id="generoChart"></canvas>
             </div>
           </div>
 
-          <!-- Age Distribution (Bar Chart) -->
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <div class="card-title">Distribución por Edad</div>
-                <div class="card-subtitle">Rangos etarios</div>
-              </div>
-            </div>
-            <div style="display: flex; align-items: flex-end; gap: 16px; height: 200px; padding: var(--spacing-base) 0;">
-              ${stats.rangosEdad.map((rango, index) => {
-                const maxCant = Math.max(...stats.rangosEdad.map(r => r.cantidad));
-                const heightPct = (rango.cantidad / maxCant) * 100;
-                const barColors = ['var(--color-primary-300)', 'var(--color-primary-400)', 'var(--color-primary-500)', 'var(--color-primary-600)', 'var(--color-primary-700)'];
-                return `
-                  <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end;">
-                    <span style="font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); color: var(--color-surface-700);">${rango.cantidad}</span>
-                    <div style="width: 100%; max-width: 48px; height: ${heightPct}%; background: ${barColors[index]}; border-radius: var(--radius-md) var(--radius-md) 0 0; min-height: 8px; transition: height 0.5s ease ${index * 80}ms;"></div>
-                    <span style="font-size: var(--font-size-xs); color: var(--color-surface-500); white-space: nowrap;">${rango.rango}</span>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          </div>
-        </div>
-
-        <div class="grid-2col">
-          <!-- Weekly Attendance (Line-like bar chart) -->
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <div class="card-title">Afluencia Semanal</div>
-                <div class="card-subtitle">Pacientes por día</div>
-              </div>
-            </div>
-            <div style="display: flex; align-items: flex-end; gap: 12px; height: 180px; padding: var(--spacing-base) 0;">
-              ${stats.diasMayorAfluencia.map((dia, index) => {
-                const maxPac = Math.max(...stats.diasMayorAfluencia.map(d => d.pacientes));
-                const heightPct = (dia.pacientes / maxPac) * 100;
-                const isMax = dia.pacientes === maxPac;
-                return `
-                  <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end;">
-                    <span style="font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); color: var(--color-surface-700);">${dia.pacientes}</span>
-                    <div style="width: 100%; max-width: 40px; height: ${heightPct}%; background: ${isMax ? 'linear-gradient(180deg, var(--color-secondary-400), var(--color-secondary-600))' : 'var(--color-surface-200)'}; border-radius: var(--radius-md) var(--radius-md) 0 0; min-height: 8px; transition: height 0.5s ease ${index * 80}ms;"></div>
-                    <span style="font-size: var(--font-size-xs); color: var(--color-surface-500);">${dia.dia.substring(0, 3)}</span>
-                  </div>
-                `;
-              }).join('')}
+          <!-- Weekly Flow Chart -->
+          <div class="chart-container">
+            <div class="chart-title">Afluencia Semanal</div>
+            <div class="chart-subtitle">Pacientes atendidos por día</div>
+            <div style="height: 250px; width: 100%;">
+              <canvas id="afluenciaChart"></canvas>
             </div>
           </div>
 
-          <!-- Revenue Trend -->
-          <div class="card">
-            <div class="card-header">
-              <div>
-                <div class="card-title">Tendencia de Ingresos</div>
-                <div class="card-subtitle">Últimos 5 meses</div>
-              </div>
-            </div>
-            <div style="position: relative; height: 180px; padding: var(--spacing-base) 0;">
-              <!-- SVG Line Chart -->
-              <svg width="100%" height="100%" viewBox="0 0 400 160" preserveAspectRatio="none">
-                <!-- Grid lines -->
-                <line x1="0" y1="40" x2="400" y2="40" stroke="var(--color-surface-100)" stroke-width="1" />
-                <line x1="0" y1="80" x2="400" y2="80" stroke="var(--color-surface-100)" stroke-width="1" />
-                <line x1="0" y1="120" x2="400" y2="120" stroke="var(--color-surface-100)" stroke-width="1" />
-
-                <!-- Area fill -->
-                <defs>
-                  <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="var(--color-primary-400)" stop-opacity="0.3" />
-                    <stop offset="100%" stop-color="var(--color-primary-400)" stop-opacity="0.02" />
-                  </linearGradient>
-                </defs>
-                ${(() => {
-                  const data = stats.ingresosPorMes;
-                  const maxVal = Math.max(...data.map(d => d.monto));
-                  const points = data.map((d, i) => ({
-                    x: 40 + (i * (320 / (data.length - 1))),
-                    y: 150 - ((d.monto / maxVal) * 130),
-                  }));
-                  const linePoints = points.map(p => `${p.x},${p.y}`).join(' ');
-                  const areaPoints = `${points[0].x},150 ${linePoints} ${points[points.length - 1].x},150`;
-                  return `
-                    <polygon points="${areaPoints}" fill="url(#areaGrad)" />
-                    <polyline points="${linePoints}" fill="none" stroke="var(--color-primary-500)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                    ${points.map((p, i) => `
-                      <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--color-white)" stroke="var(--color-primary-500)" stroke-width="2" />
-                      <text x="${p.x}" y="${p.y - 12}" text-anchor="middle" font-size="10" fill="var(--color-surface-600)" font-weight="600">$${data[i].monto}</text>
-                      <text x="${p.x}" y="158" text-anchor="middle" font-size="10" fill="var(--color-surface-400)">${data[i].mes}</text>
-                    `).join('')}
-                  `;
-                })()}
-              </svg>
+          <!-- Age Ranges Chart -->
+          <div class="chart-container">
+            <div class="chart-title">Rangos de Edad</div>
+            <div class="chart-subtitle">Distribución etaria</div>
+            <div style="height: 250px; width: 100%;">
+              <canvas id="edadChart"></canvas>
             </div>
           </div>
+
         </div>
       </main>
     `;
   }
 
-  return { render };
+  function initCharts(stats) {
+    if (typeof Chart === 'undefined') {
+      console.error('Chart.js no está cargado');
+      return;
+    }
+
+    // Configuración global
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.color = '#64748b';
+
+    // Limpiar gráficos anteriores si existen
+    ['ingresosChart', 'generoChart', 'afluenciaChart', 'edadChart'].forEach(id => {
+      if (charts[id]) {
+        charts[id].destroy();
+      }
+    });
+
+    // 1. Gráfico de Tendencia de Ingresos (Line)
+    const ctxIngresos = document.getElementById('ingresosChart');
+    if (ctxIngresos) {
+      charts['ingresosChart'] = new Chart(ctxIngresos, {
+        type: 'line',
+        data: {
+          labels: stats.ingresosPorMes.map(d => d.mes),
+          datasets: [{
+            label: 'Ingresos ($)',
+            data: stats.ingresosPorMes.map(d => d.monto),
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4, // Curvas suaves
+            pointBackgroundColor: '#ffffff',
+            pointBorderColor: '#3b82f6',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // 2. Gráfico de Género (Doughnut)
+    const ctxGenero = document.getElementById('generoChart');
+    if (ctxGenero) {
+      charts['generoChart'] = new Chart(ctxGenero, {
+        type: 'doughnut',
+        data: {
+          labels: ['Masculino', 'Femenino'],
+          datasets: [{
+            data: [stats.distribucionGenero.masculino, stats.distribucionGenero.femenino],
+            backgroundColor: ['#3b82f6', '#ec4899'],
+            hoverOffset: 4,
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '75%',
+          plugins: {
+            legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } }
+          }
+        }
+      });
+    }
+
+    // 3. Gráfico de Afluencia Semanal (Bar)
+    const ctxAfluencia = document.getElementById('afluenciaChart');
+    if (ctxAfluencia) {
+      charts['afluenciaChart'] = new Chart(ctxAfluencia, {
+        type: 'bar',
+        data: {
+          labels: stats.diasMayorAfluencia.map(d => d.dia.substring(0,3)),
+          datasets: [{
+            label: 'Pacientes',
+            data: stats.diasMayorAfluencia.map(d => d.pacientes),
+            backgroundColor: '#10b981',
+            borderRadius: 6,
+            barThickness: 'flex',
+            maxBarThickness: 40
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // 4. Gráfico de Edad (Bar)
+    const ctxEdad = document.getElementById('edadChart');
+    if (ctxEdad) {
+      charts['edadChart'] = new Chart(ctxEdad, {
+        type: 'bar',
+        data: {
+          labels: stats.rangosEdad.map(d => d.rango),
+          datasets: [{
+            label: 'Cantidad',
+            data: stats.rangosEdad.map(d => d.cantidad),
+            backgroundColor: '#6366f1',
+            borderRadius: 6,
+            barThickness: 'flex',
+            maxBarThickness: 40
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+  }
+
+  function refresh() {
+    window.dispatchEvent(new Event('hashchange'));
+    Toast.success('Dashboard actualizado con datos en tiempo real');
+  }
+
+  return { render, refresh };
 })();
