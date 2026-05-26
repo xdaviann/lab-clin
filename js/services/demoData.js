@@ -66,6 +66,11 @@ const DemoData = (() => {
     'Hematología', 'Química', 'Hormonas', 'Serología', 'Inmunología', 'Urología', 'Microbiología'
   ];
 
+  const DEFAULT_USERS = [
+    { id: 1, nombre: 'Administrador', email: 'admin@labclinica.com', password: 'admin123', rol: 'Administrador', estado: 'Activo', permisos: null, ultimoAcceso: null },
+    { id: 2, nombre: 'Operador', email: 'operador@labclinica.com', password: 'operador123', rol: 'Operador', estado: 'Activo', permisos: ['/dashboard', '/pacientes', '/ordenes', '/resultados'], ultimoAcceso: null }
+  ];
+
   let patients = DEFAULT_PATIENTS;
   let pruebas = DEFAULT_PRUEBAS;
   let orders = DEFAULT_ORDERS;
@@ -73,6 +78,7 @@ const DemoData = (() => {
   let invoices = DEFAULT_INVOICES;
   let payments = DEFAULT_PAYMENTS;
   let categorias = DEFAULT_CATEGORIAS;
+  let users = DEFAULT_USERS;
 
   try {
     const rawPatients = localStorage.getItem('sys_patients');
@@ -95,6 +101,9 @@ const DemoData = (() => {
 
     const rawCategorias = localStorage.getItem('sys_categorias');
     if (rawCategorias && rawCategorias !== 'undefined') categorias = JSON.parse(rawCategorias);
+
+    const rawUsers = localStorage.getItem('sys_users');
+    if (rawUsers && rawUsers !== 'undefined') users = JSON.parse(rawUsers);
   } catch (err) {
     console.error('Error cargando datos locales (JSON corrupto). Usando datos por defecto:', err);
   }
@@ -106,6 +115,7 @@ const DemoData = (() => {
   if (!Array.isArray(invoices)) invoices = DEFAULT_INVOICES;
   if (!Array.isArray(payments)) payments = DEFAULT_PAYMENTS;
   if (!Array.isArray(categorias)) categorias = DEFAULT_CATEGORIAS;
+  if (!Array.isArray(users)) users = DEFAULT_USERS;
 
   // Run on-the-fly migration to normalize states and remove medicoRemitente 
   orders.forEach(o => {
@@ -142,6 +152,36 @@ const DemoData = (() => {
     localStorage.setItem('sys_invoices', JSON.stringify(invoices));
     localStorage.setItem('sys_payments', JSON.stringify(payments));
     localStorage.setItem('sys_categorias', JSON.stringify(categorias));
+    localStorage.setItem('sys_users', JSON.stringify(users));
+  }
+
+  /* ── Users CRUD ── */
+  function getUsers() {
+    return [...users];
+  }
+
+  function getUserById(id) {
+    return users.find(u => u.id === id) || null;
+  }
+
+  function addUser(data) {
+    const newUser = {
+      ...data,
+      id: Date.now(),
+      estado: 'Activo',
+      ultimoAcceso: null
+    };
+    users.push(newUser);
+    saveData();
+    return newUser;
+  }
+
+  function updateUser(id, updates) {
+    const idx = users.findIndex(u => u.id === id);
+    if (idx === -1) return null;
+    users[idx] = { ...users[idx], ...updates };
+    saveData();
+    return users[idx];
   }
 
   /* ID counter helper — evita colisiones al generar nuevos IDs */
@@ -351,11 +391,11 @@ const DemoData = (() => {
   }
 
   function togglePruebaActiva(id) {
-    const idx = pruebas.findIndex(p => p.id === id);
-    if (idx === -1) return null;
-    pruebas[idx].activa = !pruebas[idx].activa;
+    const p = getPruebaById(id);
+    if (!p) return null;
+    p.activa = !p.activa;
     saveData();
-    return pruebas[idx];
+    return p;
   }
 
   function deletePrueba(id) {
@@ -537,6 +577,7 @@ const DemoData = (() => {
   }
 
   return {
+    getUsers, getUserById, addUser, updateUser,
     getPatients, getPatientById, searchPatients,
     getOrders, getOrderById, updateOrderStatus,
     getResults, getResultById, updateResult, validateResult, deliverResult,

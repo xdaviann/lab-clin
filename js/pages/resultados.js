@@ -125,8 +125,8 @@ const ResultadosPage = (() => {
                   ${Icons.edit()}
                 </button>
               ` : ''}
-              ${order.estado === 'Completado' ? `
-                <button class="btn btn-ghost btn-icon" onclick="ResultadosPage.sendEmail('${order.id}')" title="Enviar por correo al paciente" style="color: var(--color-success);">
+              ${order.estado === 'Completado' || order.estado === 'Entregado' ? `
+                <button class="btn btn-ghost btn-icon" onclick="ResultadosPage.sendEmail('${order.id}')" title="${order.emailEnviado ? 'Reenviar' : 'Enviar'} por correo al paciente" style="color: var(--color-success);">
                   ${Icons.mail()}
                 </button>
               ` : ''}

@@ -70,11 +70,9 @@ const LoginPage = (() => {
     let hasError = false;
 
     // Validación de usuario
-    /* Usuarios válidos del sistema */
-    const USERS = {
-      'admin@labclinica.com':    { password: 'admin123',    id: 1, nombre: 'Administrador',  rol: 'Administrador' },
-      'operador@labclinica.com': { password: 'operador123', id: 2, nombre: 'Operador',       rol: 'Operador' },
-    };
+    /* Usuarios desde DemoData (persistidos en localStorage) */
+    const allUsers = DemoData.getUsers();
+    const activeUser = allUsers.find(u => u.email === email && u.estado === 'Activo');
 
     if (!email) {
       if (emailError) {
@@ -82,9 +80,9 @@ const LoginPage = (() => {
         emailError.style.display = 'block';
       }
       hasError = true;
-    } else if (!USERS[email]) {
+    } else if (!activeUser) {
       if (emailError) {
-        emailError.textContent = 'El usuario no existe';
+        emailError.textContent = 'El usuario no existe o está inactivo';
         emailError.style.display = 'block';
       }
       hasError = true;
@@ -97,7 +95,7 @@ const LoginPage = (() => {
         pwdError.style.display = 'block';
       }
       hasError = true;
-    } else if (USERS[email] && password !== USERS[email].password) {
+    } else if (activeUser && password !== activeUser.password) {
       if (pwdError) {
         pwdError.textContent = 'Contraseña incorrecta';
         pwdError.style.display = 'block';
@@ -107,7 +105,7 @@ const LoginPage = (() => {
 
     if (hasError) return;
 
-    const userData = USERS[email];
+    const userData = activeUser;
 
     // Demo authentication — en producción: Supabase Auth
     const submitBtn = document.getElementById('login-submit');
@@ -120,8 +118,9 @@ const LoginPage = (() => {
         currentUser: {
           id: userData.id,
           nombre: userData.nombre,
-          email: email,
+          email: userData.email,
           rol: userData.rol,
+          permisos: userData.permisos
         },
       });
 

@@ -1,28 +1,42 @@
 /* ============================================================
-   PAGE: USUARIOS — Gestión de usuarios y roles
-   RF-SEC-001 a RF-SEC-005
+   PAGE: USUARIOS — Gestión de usuarios y permisos dinámicos
    ============================================================ */
 
 const UsuariosPage = (() => {
-  const demoUsers = [
-    { id: 1, nombre: 'Administrador', email: 'admin@labclinica.com', rol: 'Administrador', estado: 'Activo', ultimoAcceso: '2026-05-08' },
-    { id: 2, nombre: 'Ana Morales', email: 'ana.morales@labclinica.com', rol: 'Bioanalista', estado: 'Activo', ultimoAcceso: '2026-05-08' },
-    { id: 3, nombre: 'Pedro Fuentes', email: 'pedro.fuentes@labclinica.com', rol: 'Bioanalista', estado: 'Activo', ultimoAcceso: '2026-05-07' },
-    { id: 4, nombre: 'Laura Gómez', email: 'laura.gomez@labclinica.com', rol: 'Recepcionista', estado: 'Activo', ultimoAcceso: '2026-05-08' },
-    { id: 5, nombre: 'Carlos Méndez', email: 'carlos.mendez@labclinica.com', rol: 'Recepcionista', estado: 'Inactivo', ultimoAcceso: '2026-04-20' },
+  const ALL_MODULES = [
+    { id: '/dashboard', label: 'Dashboard' },
+    { id: '/pacientes', label: 'Pacientes' },
+    { id: '/ordenes', label: 'Órdenes' },
+    { id: '/resultados', label: 'Resultados' },
+    { id: '/pruebas', label: 'Pruebas' },
+    { id: '/facturacion', label: 'Facturación' },
+    { id: '/reportes', label: 'Reportes' },
+    { id: '/analytics', label: 'Analytics BI' },
+    { id: '/usuarios', label: 'Usuarios' },
+    { id: '/configuracion', label: 'Configuración' }
   ];
 
   function render() {
+    const users = DemoData.getUsers();
+
+    // Dynamically calculate stats
+    const admins = users.filter(u => u.rol === 'Administrador').length;
+    const operadores = users.filter(u => u.rol !== 'Administrador').length;
+
     return `
+      <style>
+        .permissions-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 8px; }
+        .permission-checkbox { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; }
+      </style>
       ${TopBar.render('Usuarios')}
       <main class="content" id="page-content">
         <div class="page-header">
           <div>
             <h1 class="page-title">Gestión de Usuarios</h1>
-            <p class="page-subtitle">${demoUsers.length} usuarios registrados</p>
+            <p class="page-subtitle">${users.length} usuarios registrados en el sistema</p>
           </div>
           <div class="page-actions">
-            <button class="btn btn-primary" onclick="UsuariosPage.openNewUserModal()" id="btn-new-user">
+            <button class="btn btn-primary" onclick="UsuariosPage.openUserModal()" id="btn-new-user">
               ${Icons.plus()} Nuevo Usuario
             </button>
           </div>
@@ -34,21 +48,14 @@ const UsuariosPage = (() => {
             <div class="stat-icon icon-primary">${Icons.shieldCheck()}</div>
             <div class="stat-content">
               <div class="stat-label">Administradores</div>
-              <div class="stat-value">${demoUsers.filter(u => u.rol === 'Administrador').length}</div>
+              <div class="stat-value">${admins}</div>
             </div>
           </div>
           <div class="stat-card stat-success">
-            <div class="stat-icon icon-success">${Icons.flask()}</div>
+            <div class="stat-icon icon-success">${Icons.users()}</div>
             <div class="stat-content">
-              <div class="stat-label">Bioanalistas</div>
-              <div class="stat-value">${demoUsers.filter(u => u.rol === 'Bioanalista').length}</div>
-            </div>
-          </div>
-          <div class="stat-card stat-info">
-            <div class="stat-icon icon-info">${Icons.users()}</div>
-            <div class="stat-content">
-              <div class="stat-label">Recepcionistas</div>
-              <div class="stat-value">${demoUsers.filter(u => u.rol === 'Recepcionista').length}</div>
+              <div class="stat-label">Operadores</div>
+              <div class="stat-value">${operadores}</div>
             </div>
           </div>
         </div>
@@ -62,13 +69,12 @@ const UsuariosPage = (() => {
                   <th>Usuario</th>
                   <th>Email</th>
                   <th>Rol</th>
-                  <th>Estado</th>
-                  <th>Último Acceso</th>
+                  <th>Paneles Permitidos</th>
                   <th style="text-align: center;">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                ${demoUsers.map(user => `
+                ${users.map(user => `
                   <tr>
                     <td>
                       <div style="display: flex; align-items: center; gap: var(--spacing-md);">
@@ -79,14 +85,14 @@ const UsuariosPage = (() => {
                     <td style="color: var(--color-surface-500);">${user.email}</td>
                     <td><span class="badge badge-primary">${user.rol}</span></td>
                     <td>
-                      <span class="badge ${user.estado === 'Activo' ? 'badge-success' : 'badge-neutral'}">
-                        <span class="badge-dot"></span>${user.estado}
-                      </span>
+                      ${user.permisos === null 
+                        ? '<span class="badge badge-success">Acceso Total</span>' 
+                        : `<span class="badge badge-neutral">${user.permisos.length} Módulos</span>`
+                      }
                     </td>
-                    <td style="color: var(--color-surface-500);">${formatDate(user.ultimoAcceso)}</td>
                     <td style="text-align: center;">
                       <div style="display: flex; justify-content: center; gap: 4px;">
-                        <button class="btn btn-ghost btn-icon" title="Editar">
+                        <button class="btn btn-ghost btn-icon" title="Editar Permisos y Clave" onclick="UsuariosPage.openUserModal(${user.id})">
                           ${Icons.edit()}
                         </button>
                       </div>
@@ -101,42 +107,146 @@ const UsuariosPage = (() => {
     `;
   }
 
-  function openNewUserModal() {
+  function openUserModal(userId = null) {
+    const isEdit = userId !== null;
+    let user = null;
+    if (isEdit) {
+      user = DemoData.getUserById(userId);
+      if (!user) return;
+    }
+
+    const isPrimaryAdmin = user && user.id === 1;
+
     Modal.open({
-      title: 'Nuevo Usuario',
+      title: isEdit ? `Editar Usuario: ${user.nombre}` : 'Nuevo Usuario',
       content: `
-        <form id="new-user-form">
-          <div class="form-group" style="margin-bottom: var(--spacing-base);">
-            <label class="form-label">Nombre completo <span class="required">*</span></label>
-            <input type="text" name="nombre" required placeholder="Nombre del usuario" />
+        <form id="user-form" onsubmit="event.preventDefault(); UsuariosPage.saveUser(${userId})">
+          <div class="grid-2col" style="margin-bottom: var(--spacing-base);">
+            <div class="form-group">
+              <label class="form-label">Nombre completo <span class="required">*</span></label>
+              <input type="text" id="user-nombre" required placeholder="Nombre del usuario" value="${user ? user.nombre : ''}" ${isPrimaryAdmin ? 'disabled' : ''} />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Correo electrónico <span class="required">*</span></label>
+              <input type="email" id="user-email" required placeholder="usuario@labclinica.com" value="${user ? user.email : ''}" ${isPrimaryAdmin ? 'disabled' : ''} />
+            </div>
           </div>
-          <div class="form-group" style="margin-bottom: var(--spacing-base);">
-            <label class="form-label">Correo electrónico <span class="required">*</span></label>
-            <input type="email" name="email" required placeholder="usuario@labclinica.com" />
+          <div class="grid-2col" style="margin-bottom: var(--spacing-base);">
+            <div class="form-group">
+              <label class="form-label">Rol <span class="required">*</span></label>
+              <select id="user-rol" required onchange="UsuariosPage.handleRoleChange(this.value)" ${isPrimaryAdmin ? 'disabled' : ''}>
+                <option value="Operador" ${user && user.rol === 'Operador' ? 'selected' : ''}>Operador</option>
+                <option value="Administrador" ${user && user.rol === 'Administrador' ? 'selected' : ''}>Administrador</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">${isEdit ? 'Nueva Contraseña (dejar en blanco para no cambiar)' : 'Contraseña <span class="required">*</span>'}</label>
+              <input type="text" id="user-password" placeholder="Mínimo 8 caracteres" ${!isEdit ? 'required' : ''} />
+            </div>
           </div>
-          <div class="form-group" style="margin-bottom: var(--spacing-base);">
-            <label class="form-label">Rol <span class="required">*</span></label>
-            <select name="rol" required>
-              <option value="">Seleccionar rol...</option>
-              <option value="Administrador">Administrador</option>
-              <option value="Bioanalista">Bioanalista</option>
-              <option value="Recepcionista">Recepcionista</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Contraseña temporal <span class="required">*</span></label>
-            <input type="password" name="password" required placeholder="Mínimo 8 caracteres" />
+          
+          <div class="form-group" style="margin-top: 24px;">
+            <label class="form-label">Permisos de Acceso a Paneles</label>
+            ${isPrimaryAdmin ? `
+              <div style="padding: 12px; background: var(--color-success-50); border-radius: 8px; color: var(--color-success-700); font-size: 0.9rem;">
+                El administrador principal tiene acceso total al sistema y no se le pueden restringir permisos.
+              </div>
+            ` : `
+              <div class="permissions-grid" id="permissions-container">
+                ${ALL_MODULES.map(mod => {
+                  const isChecked = user ? (user.permisos === null || user.permisos.includes(mod.id)) : false;
+                  return `
+                    <label class="permission-checkbox">
+                      <input type="checkbox" name="permissions" value="${mod.id}" ${isChecked ? 'checked' : ''} />
+                      ${mod.label}
+                    </label>
+                  `;
+                }).join('')}
+              </div>
+              <div style="margin-top: 12px; font-size: 0.8rem; color: var(--color-surface-500);">
+                Nota: Si selecciona el rol "Administrador", el usuario tendrá acceso total automáticamente al guardar.
+              </div>
+            `}
           </div>
         </form>
       `,
       footer: `
         <button class="btn btn-secondary" onclick="Modal.close()">Cancelar</button>
-        <button class="btn btn-primary" onclick="Modal.close(); Toast.success('Usuario creado exitosamente');">
-          ${Icons.check()} Crear Usuario
+        <button class="btn btn-primary" onclick="document.getElementById('user-form').requestSubmit()">
+          ${Icons.check()} ${isEdit ? 'Guardar Cambios' : 'Crear Usuario'}
         </button>
       `,
     });
+
+    if (user && !isPrimaryAdmin) {
+      handleRoleChange(user.rol);
+    }
   }
 
-  return { render, openNewUserModal };
+  function handleRoleChange(role) {
+    const container = document.getElementById('permissions-container');
+    if (!container) return;
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    if (role === 'Administrador') {
+      checkboxes.forEach(cb => { cb.checked = true; cb.disabled = true; });
+    } else {
+      checkboxes.forEach(cb => { cb.disabled = false; });
+    }
+  }
+
+  function saveUser(userId) {
+    const isEdit = userId !== null;
+    const nombreInput = document.getElementById('user-nombre');
+    const emailInput = document.getElementById('user-email');
+    const rolInput = document.getElementById('user-rol');
+    const pwdInput = document.getElementById('user-password');
+
+    let permisos = null;
+    
+    // Check if it's the primary admin
+    const isPrimaryAdmin = isEdit && userId === 1;
+
+    if (!isPrimaryAdmin) {
+      if (rolInput.value === 'Administrador') {
+        permisos = null;
+      } else {
+        const checkboxes = document.querySelectorAll('input[name="permissions"]:checked');
+        permisos = Array.from(checkboxes).map(cb => cb.value);
+        if (permisos.length === 0) {
+          Toast.error('Debe asignar al menos un panel de acceso para el operador.');
+          return;
+        }
+      }
+    }
+
+    if (isEdit) {
+      const updates = {};
+      if (!isPrimaryAdmin) {
+        updates.nombre = nombreInput.value;
+        updates.email = emailInput.value;
+        updates.rol = rolInput.value;
+        updates.permisos = permisos;
+      }
+      if (pwdInput.value) {
+        updates.password = pwdInput.value;
+      }
+      
+      DemoData.updateUser(userId, updates);
+      Toast.success('Usuario actualizado exitosamente');
+    } else {
+      DemoData.addUser({
+        nombre: nombreInput.value,
+        email: emailInput.value,
+        rol: rolInput.value,
+        password: pwdInput.value,
+        permisos: permisos
+      });
+      Toast.success('Usuario creado exitosamente');
+    }
+
+    Modal.close();
+    window.dispatchEvent(new Event('hashchange'));
+  }
+
+  return { render, openUserModal, handleRoleChange, saveUser };
 })();

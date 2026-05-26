@@ -3,21 +3,15 @@
    ============================================================ */
 
 const Sidebar = (() => {
-  /* Rutas permitidas por rol */
-  const ROLE_ROUTES = {
-    'Administrador': null, /* null = acceso total */
-    'Operador': ['/dashboard', '/pacientes', '/ordenes', '/resultados'],
-  };
-
   function isAdmin() {
     const user = Store.getState().currentUser;
-    return user && user.rol === 'Administrador';
+    return user && user.permisos === null;
   }
 
   function getAllowedPaths() {
     const user = Store.getState().currentUser;
     if (!user) return [];
-    return ROLE_ROUTES[user.rol] || [];
+    return user.permisos; /* null means total access, array means restricted */
   }
 
   function getNavItems() {
@@ -115,5 +109,5 @@ const Sidebar = (() => {
     if (activeItem) activeItem.classList.add('active');
   }
 
-  return { render, updateActiveItem, isAdmin, getAllowedPaths, ROLE_ROUTES };
+  return { render, updateActiveItem, isAdmin, getAllowedPaths };
 })();

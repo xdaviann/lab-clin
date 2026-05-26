@@ -32,9 +32,9 @@ const App = (() => {
         return false;
       }
 
-      /* Control de acceso por rol */
+      /* Control de acceso dinámico */
       if (state.isAuthenticated && state.currentUser) {
-        const allowedPaths = Sidebar.ROLE_ROUTES[state.currentUser.rol];
+        const allowedPaths = Sidebar.getAllowedPaths();
         /* allowedPaths === null => acceso total (admin) */
         if (allowedPaths !== null) {
           /* Extraer ruta base para sub-rutas (ej: /ordenes/nueva → /ordenes) */
@@ -163,6 +163,35 @@ function toggleSidebar() {
 }
 
 /* ── Boot ── */
-document.addEventListener('DOMContentLoaded', () => {
-  App.init();
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    // Inicializar caché desde Firebase antes de arrancar la UI
+    await DemoData._init();
+    App.init();
+  } catch (err) {
+    console.error('Error al conectar con Firebase:', err);
+    const appRoot = document.getElementById('app');
+    if (appRoot) {
+      appRoot.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: var(--color-surface-dark, #1A1D29);">
+          <div style="text-align: center; padding: 40px; max-width: 480px;">
+            <div style="font-size: 3rem; margin-bottom: 16px;">⚠️</div>
+            <div style="color: #fff; font-family: 'Inter', sans-serif; font-size: 1.2rem; font-weight: 600; margin-bottom: 12px;">
+              Error de Conexión
+            </div>
+            <div style="color: #94a3b8; font-family: 'Inter', sans-serif; font-size: 0.875rem; line-height: 1.6; margin-bottom: 24px;">
+              No se pudo conectar con la base de datos Firebase.<br>
+              Verifique su conexión a internet e intente recargar la página.
+            </div>
+            <button onclick="location.reload()" style="background: #6366f1; color: #fff; border: none; padding: 12px 24px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;">
+              🔄 Recargar
+            </button>
+            <div style="color: #475569; font-size: 0.75rem; margin-top: 16px;">
+              ${err.message || 'Firebase connection error'}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
 });
