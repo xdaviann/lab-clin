@@ -11,7 +11,6 @@ const UsuariosPage = (() => {
     { id: '/pruebas', label: 'Pruebas' },
     { id: '/facturacion', label: 'Facturación' },
     { id: '/reportes', label: 'Reportes' },
-    { id: '/analytics', label: 'Analytics BI' },
     { id: '/usuarios', label: 'Usuarios' },
     { id: '/configuracion', label: 'Configuración' }
   ];

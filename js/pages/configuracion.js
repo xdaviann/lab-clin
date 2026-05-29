@@ -45,28 +45,6 @@ const ConfiguracionPage = (() => {
             </button>
           </div>
 
-          <!-- Supabase Config -->
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">Conexión Supabase</div>
-              <span class="badge badge-warning"><span class="badge-dot"></span>Demo Mode</span>
-            </div>
-            <p style="font-size: var(--font-size-sm); color: var(--color-surface-500); margin-bottom: var(--spacing-lg);">
-              Configure las credenciales de Supabase para conectar con la base de datos real. Actualmente el sistema está en modo demo con datos simulados.
-            </p>
-            <div class="form-group" style="margin-bottom: var(--spacing-base);">
-              <label class="form-label">Supabase URL</label>
-              <input type="url" placeholder="https://your-project.supabase.co" />
-            </div>
-            <div class="form-group" style="margin-bottom: var(--spacing-lg);">
-              <label class="form-label">Anon Key</label>
-              <input type="password" placeholder="eyJhbGciOiJIUzI1NiIs..." />
-            </div>
-            <button class="btn btn-primary" onclick="Toast.info('Conexión a Supabase próximamente')">
-              Conectar
-            </button>
-          </div>
-
           <!-- Email Config -->
           <div class="card">
             <div class="card-header">

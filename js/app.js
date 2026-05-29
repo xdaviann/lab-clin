@@ -15,7 +15,6 @@ const App = (() => {
     Router.register('/resultados', renderAppPage(ResultadosPage));
     Router.register('/facturacion', renderAppPage(FacturacionPage));
     Router.register('/reportes', renderAppPage(ReportesPage));
-    Router.register('/analytics', renderAppPage(AnalyticsPage));
     Router.register('/usuarios', renderAppPage(UsuariosPage));
     Router.register('/configuracion', renderAppPage(ConfiguracionPage));
     Router.register('/pruebas', renderAppPage(PruebasPage));

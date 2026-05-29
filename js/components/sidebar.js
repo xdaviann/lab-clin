@@ -29,7 +29,6 @@ const Sidebar = (() => {
         { id: 'pruebas', label: 'Pruebas', icon: 'activity', path: '/pruebas' },
         { id: 'facturacion', label: 'Facturación', icon: 'dollarSign', path: '/facturacion' },
         { id: 'reportes', label: 'Reportes', icon: 'barChart', path: '/reportes' },
-        { id: 'analytics', label: 'Analytics BI', icon: 'pieChart', path: '/analytics' },
       ]},
       { section: 'Sistema', items: [
         { id: 'usuarios', label: 'Usuarios', icon: 'shieldCheck', path: '/usuarios' },

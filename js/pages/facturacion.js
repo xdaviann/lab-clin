@@ -207,7 +207,7 @@ const FacturacionPage = (() => {
           <div class="form-row" style="margin-bottom: var(--spacing-base);">
             <div class="form-group">
               <label class="form-label">Método de pago <span class="required">*</span></label>
-              <select id="pay-method" required>
+              <select id="pay-method" required onchange="FacturacionPage.toggleReferenceField()">
                 <option value="Efectivo">Efectivo</option>
                 <option value="Tarjeta">Tarjeta</option>
                 <option value="Transferencia">Transferencia</option>
@@ -215,8 +215,8 @@ const FacturacionPage = (() => {
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Referencia <span class="required">*</span></label>
-              <input type="text" id="pay-reference" placeholder="Número de referencia" required />
+              <label class="form-label" id="pay-reference-label">Referencia <span style="color: var(--color-surface-400); font-size: 0.8em;">(no aplica para efectivo)</span></label>
+              <input type="text" id="pay-reference" placeholder="Número de referencia" disabled style="background: var(--color-surface-100); color: var(--color-surface-400);" />
             </div>
           </div>
         </form>
@@ -248,6 +248,25 @@ const FacturacionPage = (() => {
     }
   }
 
+  function toggleReferenceField() {
+    const method = document.getElementById('pay-method')?.value;
+    const refInput = document.getElementById('pay-reference');
+    const refLabel = document.getElementById('pay-reference-label');
+    if (!refInput) return;
+    const noRef = method === 'Efectivo' || method === 'Tarjeta';
+    refInput.disabled = noRef;
+    refInput.required = !noRef;
+    refInput.value = noRef ? '' : refInput.value;
+    refInput.style.background = noRef ? 'var(--color-surface-100)' : '';
+    refInput.style.color = noRef ? 'var(--color-surface-400)' : '';
+    refInput.placeholder = noRef ? 'No aplica' : 'Número de referencia';
+    if (refLabel) {
+      refLabel.innerHTML = noRef
+        ? 'Referencia <span style="color: var(--color-surface-400); font-size: 0.8em;">(no aplica)</span>'
+        : 'Referencia <span class="required">*</span>';
+    }
+  }
+
   function processPayment(invoiceId) {
     const currency = document.getElementById('pay-currency')?.value || 'USD';
     const amountRaw = parseFloat(document.getElementById('pay-amount')?.value) || 0;
@@ -264,7 +283,7 @@ const FacturacionPage = (() => {
       return;
     }
 
-    if (!referencia) {
+    if (metodo !== 'Efectivo' && metodo !== 'Tarjeta' && !referencia) {
       Toast.error('Ingrese el número de referencia del pago');
       return;
     }
@@ -356,5 +375,5 @@ const FacturacionPage = (() => {
     setTimeout(() => Toast.success('Datos actualizados'), 50);
   }
 
-  return { render, filterInvoices, openPaymentModal, processPayment, downloadInvoicePdf, openTasaModal, saveTasa, updatePaymentAmount, refresh };
+  return { render, filterInvoices, openPaymentModal, processPayment, downloadInvoicePdf, openTasaModal, saveTasa, updatePaymentAmount, toggleReferenceField, refresh };
 })();

@@ -39,7 +39,6 @@ const LoginPage = (() => {
                 <label>
                   <input type="checkbox" style="width: auto;" checked /> Recordarme
                 </label>
-                <a href="#" onclick="event.preventDefault(); Toast.info('Recuperación de contraseña próximamente')">¿Olvidó su contraseña?</a>
               </div>
               <button class="btn btn-primary login-btn" type="submit" id="login-submit">
                 Ingresar al Sistema

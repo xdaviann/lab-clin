@@ -334,10 +334,15 @@ const PacientesPage = (() => {
     });
   }
 
+  function toTitleCase(str) {
+    if (!str) return '';
+    return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  }
+
   function saveNewPatient() {
     const patientData = {
-      nombres: document.getElementById('np-nombres')?.value?.trim(),
-      apellidos: document.getElementById('np-apellidos')?.value?.trim(),
+      nombres: toTitleCase(document.getElementById('np-nombres')?.value?.trim()),
+      apellidos: toTitleCase(document.getElementById('np-apellidos')?.value?.trim()),
       identificacion: document.getElementById('np-identificacion')?.value?.trim(),
       fechaNacimiento: document.getElementById('np-fechaNacimiento')?.value,
       genero: document.getElementById('np-genero')?.value,
@@ -444,8 +449,8 @@ const PacientesPage = (() => {
 
   function saveEditPatient(patientId) {
     const updates = {
-      nombres: document.getElementById('ep-nombres')?.value?.trim(),
-      apellidos: document.getElementById('ep-apellidos')?.value?.trim(),
+      nombres: toTitleCase(document.getElementById('ep-nombres')?.value?.trim()),
+      apellidos: toTitleCase(document.getElementById('ep-apellidos')?.value?.trim()),
       identificacion: document.getElementById('ep-identificacion')?.value?.trim(),
       fechaNacimiento: document.getElementById('ep-fechaNacimiento')?.value,
       genero: document.getElementById('ep-genero')?.value,
